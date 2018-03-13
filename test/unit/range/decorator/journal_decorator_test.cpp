@@ -71,3 +71,31 @@ TEST(journal_node, comparison_operator)
     EXPECT_NE(node_1, node_2);
     EXPECT_NE(node_1, node_3);
 }
+
+TEST(journal_decorator, concept_checks)
+{
+    EXPECT_TRUE(journal_decorator_traits_concept<journal_decorator_default_traits>);
+    // EXPECT_TRUE(random_access_sequence_concept<journal_decorator<std::string>>);
+}
+
+TEST(journal_decorator, construction)
+{
+    // Constructing with an underlying range.
+    std::string host{"ACTG"};
+    journal_decorator journal{host};
+
+    // Default construction.
+    journal_decorator<std::string> journal_default{};
+
+    // Copy construction.
+    journal_decorator journal_copied{journal};
+
+    // Copy assignment.
+    journal_decorator journal_copy_assigned = journal;
+
+    // Move construction.
+    journal_decorator journal_moved{std::move(journal)};
+
+    // Move assignment.
+    journal_decorator journal_move_assigned = std::move(journal_copied);
+}
