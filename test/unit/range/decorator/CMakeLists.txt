@@ -1,0 +1,1 @@
+seqan3_test(journal_decorator_test.cpp)
