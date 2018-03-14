@@ -111,3 +111,24 @@ TEST(journal_decorator, function_size)
     journal_decorator journal{host};
     EXPECT_EQ(host.size(), journal.size());
 }
+
+TEST(joutnal_decorator, function_assign)
+{
+    journal_decorator<std::string> journal{};
+
+    // assign from iterators
+    std::string host{"ACTG"};
+    journal.assign(host.begin(), host.end());
+    EXPECT_EQ(host.size(), journal.size());
+    // TODO test for equality when iterator is implemented
+
+    // assign from initializer list
+    journal.assign({'A', 'C', 'T', 'G', 'A', 'C', 'G', 'T'});
+    EXPECT_EQ(8u, journal.size());
+    // TODO test for equality when iterator is implemented
+
+    // assign by replicating a value
+    journal.assign(5, 'A');
+    EXPECT_EQ(5u, journal.size());
+    // TODO test for equality when iterator is implemented
+}

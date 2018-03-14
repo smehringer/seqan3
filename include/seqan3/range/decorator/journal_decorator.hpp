@@ -40,6 +40,7 @@
 #pragma once
 
 #include <seqan3/core/concept/core.hpp>       // integral_concept
+#include <seqan3/core/concept/iterator.hpp>   // input_iterator_concept
 #include <seqan3/range/container/concept.hpp> // random_access_sequence_concept
 #include <seqan3/range/concept.hpp>           // random_access_range_concept
 #include <seqan3/range/decorator/journal_decorator_detail.hpp>
@@ -146,6 +147,65 @@ public:
     //!\brief Destructor is defaulted.
     ~journal_decorator() = default;
     //!\}
+
+    /*!\brief Assign a new range via iterators to the journal_decorator.
+     * \tparam iterator_type Must satisfy the seqan3::input_iterator_concept and dereference to the same value_type.
+     * \param begin The begin iterator of the range to be assigned.
+     * \param end The end iterator of the range to be assigned.
+     *
+     * IMPORTANT: This will not replace the underlying host sequence but delete
+     * it and insert the new range into the insertion buffer. Note that as a
+     * consequence every subsequent operation on the journal_decorator is on
+     * the insertion buffer and the runtime/memory advantages of the journal_decorator
+     * are not existent anymore.
+     */
+    template <input_iterator_concept iterator_type>
+        requires std::is_same_v<value_type, std::remove_const_t<typename std::iterator_traits<iterator_type>::value_type>>
+    void assign(iterator_type begin, iterator_type end)
+    {
+        host_ptr = nullptr;
+        insertion_buffer.assign(begin, end);
+        length = insertion_buffer.size();
+        journal_tree.assign({{journal_node_type::source::BUFFER,
+                              static_cast<size_type>(insertion_buffer.size()),
+                              0, 0, 0}});
+    }
+
+    /*!\brief Assign a new range via an initializer list to the journal_decorator.
+     * \param list The initializer list to be assigned.
+     *
+     * Merely delegates to the member function assign(list.begin(), list.end()).
+     *
+     * IMPORTANT: This will not replace the underlying host sequence but delete
+     * it and insert the new range into the insertion buffer. Note that as a
+     * consequence every subsequent operation on the journal_decorator is on
+     * the insertion buffer and the runtime/memory advantages of the journal_decorator
+     * are not existent anymore.
+     */
+    void assign(std::initializer_list<value_type> list)
+    {
+        assign(list.begin(), list.end());
+    }
+
+    /*!\brief Replace /p count times value /p val as a new range for the journal_decorator.
+     * \param count The number of replications of \val and after assignment the new length.
+     * \param val The value to be replicated as a new range.
+     *
+     * IMPORTANT: This will not replace the underlying host sequence but delete
+     * it and insert the new range into the insertion buffer. Note that as a
+     * consequence every subsequent operation on the journal_decorator is on
+     * the insertion buffer and the runtime/memory advantages of the journal_decorator
+     * are not existent anymore.
+     */
+    void assign(size_type const count, value_type const & val)
+    {
+        host_ptr = nullptr;
+        insertion_buffer.assign(count, val);
+        length = insertion_buffer.size();
+        journal_tree.assign({{journal_node_type::source::BUFFER,
+                              static_cast<size_type>(insertion_buffer.size()),
+                              0, 0, 0}});
+    }
 
     //!\brief Returns the length of the current state of the journal_decorator.
     size_type size() const
