@@ -278,6 +278,12 @@ public:
     {
         return length;
     }
+
+    //!\brief Returns maximal size of buffer of the journal_decorator.
+    size_type max_size() const
+    {
+        return insertion_buffer.max_size();
+    }
     //!\}
 
 protected:
