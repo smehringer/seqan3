@@ -80,7 +80,7 @@ concept bool journal_decorator_traits_concept = requires (t v)
 struct journal_decorator_default_traits
 {
     template <typename journal_node_type>
-    using journal_container_type = std::vector<journal_node_typejournal_container_type>;
+    using journal_container_type = std::vector<journal_node_type>;
 
     template <typename value_type>
     using insertion_buffer_type = std::vector<value_type>;
@@ -146,6 +146,12 @@ public:
     //!\brief Destructor is defaulted.
     ~journal_decorator() = default;
     //!\}
+
+    //!\brief Returns the length of the current state of the journal_decorator.
+    size_type size() const
+    {
+        return length;
+    }
 
 protected:
     //!\brief The type of journal_node that store the modification information.

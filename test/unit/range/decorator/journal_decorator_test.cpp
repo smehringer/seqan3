@@ -99,3 +99,15 @@ TEST(journal_decorator, construction)
     // Move assignment.
     journal_decorator journal_move_assigned = std::move(journal_copied);
 }
+
+TEST(journal_decorator, function_size)
+{
+    // default has length 0
+    journal_decorator<std::string> journal_default{};
+    EXPECT_EQ(journal_default.size(), (std::string::size_type)0);
+
+    // construction from a host sequence
+    std::string host{"ACTG"};
+    journal_decorator journal{host};
+    EXPECT_EQ(host.size(), journal.size());
+}
