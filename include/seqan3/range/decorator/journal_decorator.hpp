@@ -264,11 +264,21 @@ public:
     }
     //!\}
 
+    /*!\name Capacity
+     * \{
+     */
+    //!\brief Returns whether the journal_decorator represents an empty range.
+    bool empty() const
+    {
+        return (length == 0);
+    }
+
     //!\brief Returns the length of the current state of the journal_decorator.
     size_type size() const
     {
         return length;
     }
+    //!\}
 
 protected:
     //!\brief The type of journal_node that store the modification information.

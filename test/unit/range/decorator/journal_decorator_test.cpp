@@ -141,3 +141,9 @@ TEST(joutnal_decorator, function_assign)
     EXPECT_EQ(5u, journal.size());
     // TODO test for equality when iterator is implemented
 }
+
+TEST(journal_decorator, function_empty)
+{
+    journal_decorator<std::string> journal{};
+    EXPECT_TRUE(journal.empty());
+}
