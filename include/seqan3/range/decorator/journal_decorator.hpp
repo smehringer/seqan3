@@ -117,7 +117,13 @@ public:
     /*!\name Constructors / destructor / assignment
      * \{
      */
-    //!\brief Construct the journal decorator on a range.
+    /*!\brief Constructs a journal_decorator from a range.
+     * \param urange The range to decorate.
+     *
+     * This is the recommended way to construct a journal_decorator and will
+     * allow for runtime efficient modification of the range without actually
+     * modifying the underlying range.
+     */
     explicit journal_decorator(urng_t const & urange) :
         host_ptr{&urange},
         journal_tree{{{journal_node_type::source::HOST,
@@ -128,6 +134,57 @@ public:
 
     //!/brief Capturing of rvalues is explicitly prohibited.
     journal_decorator(urng_t const && urange) = delete;
+
+    /*!\brief Constructs a journal_decorator by assigning a sequence of replicated values.
+     * \param count The number of replications of \val and after assignment the new length.
+     * \param val The value to be replicated as a new range.
+     *
+     * Delegates to assign(count, value).
+     *
+     * IMPORTANT: This will not replace the underlying host sequence but delete
+     * it and insert the new range into the insertion buffer. Note that as a
+     * consequence every subsequent operation on the journal_decorator is on
+     * the insertion buffer and the runtime/memory advantages of the journal_decorator
+     * are not existent anymore.
+     */
+    journal_decorator(size_type const count, value_type const & val)
+    {
+        assign(count, val);
+    }
+
+    /*!\brief Construct a new journal_decorator by assigning from two iterators.
+     * \tparam iterator_type Must satisfy the seqan3::input_iterator_concept and dereference to the same value_type.
+     * \param begin The begin iterator of the range to be assigned.
+     * \param end The end iterator of the range to be assigned.
+     *
+     * Delegates to assign(begin, end).
+     *
+     * IMPORTANT: This will not replace the underlying host sequence but delete
+     * it and insert the new range into the insertion buffer. Note that as a
+     * consequence every subsequent operation on the journal_decorator is on
+     * the insertion buffer and the runtime/memory advantages of the journal_decorator
+     * are not existent anymore.
+     */
+    template <input_iterator_concept iterator_type>
+    journal_decorator(iterator_type begin, iterator_type end)
+    {
+        assign(begin, end);
+    }
+
+    /*!\brief Assign a new journal_decorator via an initializer list.
+     * \param list The initializer list to be assigned.
+     *
+     * Delegates to the member function assign(list.begin(), list.end()).
+     *
+     * IMPORTANT: This will not replace the underlying host sequence but delete
+     * it and insert the new range into the insertion buffer. Note that as a
+     * consequence every subsequent operation on the journal_decorator is on
+     * the insertion buffer and the runtime/memory advantages of the journal_decorator
+     * are not existent anymore.
+     */
+    explicit journal_decorator(std::initializer_list<value_type> list) :
+        journal_decorator{list.begin(), list.end()}
+    {}
 
     /*!\brief Default construction will create a nullptr as the underlying reference.
      *
@@ -146,7 +203,6 @@ public:
     journal_decorator & operator=(journal_decorator &&) = default;
     //!\brief Destructor is defaulted.
     ~journal_decorator() = default;
-    //!\}
 
     /*!\brief Assign a new range via iterators to the journal_decorator.
      * \tparam iterator_type Must satisfy the seqan3::input_iterator_concept and dereference to the same value_type.
@@ -206,6 +262,7 @@ public:
                               static_cast<size_type>(insertion_buffer.size()),
                               0, 0, 0}});
     }
+    //!\}
 
     //!\brief Returns the length of the current state of the journal_decorator.
     size_type size() const

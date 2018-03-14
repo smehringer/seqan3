@@ -82,22 +82,31 @@ TEST(journal_decorator, construction)
 {
     // Constructing with an underlying range.
     std::string host{"ACTG"};
-    journal_decorator journal{host};
+    journal_decorator<std::string> journal{host};
 
     // Default construction.
     journal_decorator<std::string> journal_default{};
 
     // Copy construction.
-    journal_decorator journal_copied{journal};
+    journal_decorator<std::string> journal_copied{journal};
 
     // Copy assignment.
-    journal_decorator journal_copy_assigned = journal;
+    journal_decorator<std::string> journal_copy_assigned = journal;
 
     // Move construction.
-    journal_decorator journal_moved{std::move(journal)};
+    journal_decorator<std::string> journal_moved{std::move(journal)};
 
     // Move assignment.
-    journal_decorator journal_move_assigned = std::move(journal_copied);
+    journal_decorator<std::string> journal_move_assigned = std::move(journal_copied);
+
+    // Construction from count and value
+    journal_decorator<std::string> journal_count_and_value{4, 'A'};
+
+    // Construction from two iterators
+    journal_decorator<std::string> journal_two_it{host.begin(), host.end()};
+
+    // Construction from initializer list
+    //journal_decorator<std::string> journal_ilist{{'A', 'C', 'T', 'G', 'A', 'C', 'G', 'T'}};
 }
 
 TEST(journal_decorator, function_size)
@@ -108,7 +117,7 @@ TEST(journal_decorator, function_size)
 
     // construction from a host sequence
     std::string host{"ACTG"};
-    journal_decorator journal{host};
+    journal_decorator<std::string> journal{host};
     EXPECT_EQ(host.size(), journal.size());
 }
 
