@@ -147,3 +147,20 @@ TEST(journal_decorator, function_empty)
     journal_decorator<std::string> journal{};
     EXPECT_TRUE(journal.empty());
 }
+
+TEST(journal_decorator, function_clear)
+{
+    std::string host{"ACTG"};
+    journal_decorator<std::string> journal{host};
+    journal.clear();
+    EXPECT_EQ(0u, journal.size());
+}
+
+TEST(journal_decorator, function_reset)
+{
+    std::string host{"ACTG"};
+    journal_decorator<std::string> journal{host};
+    // TODO insert, delete or do some other modification here when available
+    journal.reset();
+    EXPECT_EQ(host.size(), journal.size());
+}

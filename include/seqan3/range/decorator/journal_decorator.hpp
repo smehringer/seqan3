@@ -286,6 +286,40 @@ public:
     }
     //!\}
 
+    /*!\name Modifiers
+     * \{
+     */
+    /*!\brief Clears the journal_decorator to represent an empty string.
+     *
+     * Attention: This means that the journal decorator now has no valid
+     * underlying range anymore. The type is still the same but the internal
+     * pointer is set to a nullptr. The journal_decorator can still be used
+     * but subsequent modifications cannot benefit from the initial design
+     * anymore and will be less efficient.
+     */
+    void clear()
+    {
+        host_ptr = nullptr;
+        insertion_buffer.clear();
+        journal_tree.clear();
+        length = 0;
+    }
+
+    /*!\brief Resets the journal_decorator to the original host range.
+     *
+     * This means that the journal decorator now represents the original host
+     * range again. The host range remains valid (the private pointer
+     * is still valid) but all members storing modifications are cleared. The
+     * size of the journal_decorator is now equal to the underlying host again.
+     */
+    void reset()
+    {
+        insertion_buffer.clear();
+        length = (*host_ptr).size();
+        journal_tree = {{journal_node_type::source::HOST, length, 0, 0, 0}};
+    }
+    //!\}
+
 protected:
     //!\brief The type of journal_node that store the modification information.
     using journal_node_type = detail::journal_node<size_type, size_type>;
