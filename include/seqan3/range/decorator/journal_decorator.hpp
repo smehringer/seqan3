@@ -39,11 +39,15 @@
 
 #pragma once
 
+#include <cassert>
+#include <memory>
+
 #include <seqan3/core/concept/core.hpp>       // integral_concept
 #include <seqan3/core/concept/iterator.hpp>   // input_iterator_concept
 #include <seqan3/range/container/concept.hpp> // random_access_sequence_concept
 #include <seqan3/range/concept.hpp>           // random_access_range_concept
 #include <seqan3/range/decorator/journal_decorator_detail.hpp>
+#include <seqan3/range/detail/random_access_iterator.hpp>
 
 namespace seqan3
 {
@@ -87,11 +91,19 @@ struct journal_decorator_default_traits
     using insertion_buffer_type = std::vector<value_type>;
 };
 
+//!\cond
+template<typename journal_decorator_type>
+class journal_decorator_iterator; // Forward declaration
+//!\endCond
+
 template <random_access_range_concept urng_t,
           journal_decorator_traits_concept traits_type = journal_decorator_default_traits>
 class journal_decorator
 {
 protected:
+    template<typename journal_decorator_type>
+    friend class journal_decorator_iterator;
+
     //!\brief The container type storing novel inserted sequences.
     using insertion_buffer_type = typename traits_type::template insertion_buffer_type<typename urng_t::value_type>;
 
@@ -99,7 +111,7 @@ public:
     //!\brief Same as the value_type of the underlying range.
     using value_type = typename urng_t::value_type;
     //!\brief Same as the reference type of the underlying range.
-    using reference = typename urng_t::reference; //TODO this must be a proxy.
+    using reference = std::remove_const_t<typename urng_t::value_type>; //TODO this must be a proxy.
     //!\brief Same as the const_reference type of the underlying range.
     using const_reference = reference;
     //!\brief The maximum size_type of the underlying range or the insertion buffer.
@@ -110,9 +122,9 @@ public:
     //!\brief Same as the difference_type of the underlying range.
     using difference_type = size_type;
     //!\brief The iterator type that enables to iterate over the modified range.
-    // using iterator = journal_decorator_iterator; TODO when iterator class is defined
+    using iterator = journal_decorator_iterator<journal_decorator>;
     //!\brief The const iterator type that enables to iterate over the modified range.
-    // using const_iterator = journal_decorator_const_iterator; TODO when iterator class is defined
+    using const_iterator = journal_decorator_iterator<journal_decorator const>;
 
     /*!\name Constructors / destructor / assignment
      * \{
@@ -340,6 +352,285 @@ protected:
     journal_tree_type journal_tree{};
     //!\brief Tracks the length for constant size access.
     size_type length{0};
+};
+
+/*!\brief The iterator for the journal_decorator.
+ * \tparam The journal_decorator type to itereate over.
+ *
+ * You can initialize the iterator on an journal_decorator and then access
+ * the decorated sequence just like any other iterator.
+ *
+ * ```cpp
+ * std::string host{"ACTG"};
+ * journal_decorator<std::string> journal{host};
+ *
+ * // construct the iterator
+ * journal_decorator_iterator it{journal}; // iterator now points to the start.
+ *
+ * std::cout << *it << std::endl; // "A"
+ * ```
+ */
+template<typename journal_decorator_type>
+class journal_decorator_iterator : public
+    detail::random_access_iterator_base<journal_decorator_type, journal_decorator_iterator>
+{
+private:
+    using base = detail::random_access_iterator_base<journal_decorator_type, journal_decorator_iterator>;
+public:
+    //!\brief Same as the value_type of the journal_decorator.
+    using value_type = typename journal_decorator_type::value_type;
+    //!\brief Same as the size_type of the journal_decorator.
+    using size_type = typename journal_decorator_type::size_type;
+    //!\brief Same as the difference_type of the journal_decorator.
+    using difference_type = typename journal_decorator_type::difference_type;
+    //!\brief Same as the reference type of the journal_decorator.
+    using reference = typename journal_decorator_type::reference;
+    //!\brief Same as the const_reference type of the journal_decorator.
+    using const_reference = typename journal_decorator_type::const_reference;
+    //!\brief The pointer type of the value_type.
+    using pointer = value_type *;
+    //!\brief Import the parent's constructors of the random_access_iterator_base class.
+    using base::base;
+
+    /*!\name Constructors / destructor / assignment
+     * \{
+     */
+    //!\brief Construction from the journal_decorator.
+    journal_decorator_iterator(journal_decorator_type & decorator) :
+        decorator_ptr{&decorator},
+        current_node_it{decorator.journal_tree.begin()}
+    {}
+
+    //!\brief Default construction is defaulted.
+    journal_decorator_iterator() = default;
+    //!\brief Copy construction is defaulted.
+    journal_decorator_iterator(journal_decorator_iterator const &) = default;
+    //!\brief Copy assignment is defaulted.
+    journal_decorator_iterator & operator=(journal_decorator_iterator const &) = default;
+    //!\brief Move construction is defaulted.
+    journal_decorator_iterator(journal_decorator_iterator &&) = default;
+    //!\brief Move assignment is defaulted.
+    journal_decorator_iterator & operator=(journal_decorator_iterator &&) = default;
+    //!\brief Destructor is defaulted.
+    ~journal_decorator_iterator() = default;
+    //!\}
+
+    /*!\name Comparison operators
+     * \brief Compare iterators by position.
+     * \{
+     */
+    bool operator==(journal_decorator_iterator const & rhs) const noexcept
+    {
+        return (current_node_it == rhs.current_node_it && offset == rhs.offset);
+    }
+
+    bool operator!=(journal_decorator_iterator const & rhs) const noexcept
+    {
+        return !(*this == rhs);
+    }
+
+    bool operator<(journal_decorator_iterator const & rhs) const noexcept
+    {
+        if (current_node_it == rhs.current_node_it)
+            return offset < rhs.offset;
+        return current_node_it < rhs.current_node_it;
+    }
+
+    bool operator>(journal_decorator_iterator const & rhs) const noexcept
+    {
+        if (current_node_it == rhs.current_node_it)
+            return offset > rhs.offset;
+        return current_node_it > rhs.current_node_it;
+    }
+
+    bool operator<=(journal_decorator_iterator const & rhs) const noexcept
+    {
+        if (current_node_it == rhs.current_node_it)
+            return offset <= rhs.offset;
+        return current_node_it <= rhs.current_node_it;
+    }
+
+    bool operator>=(journal_decorator_iterator const & rhs) const noexcept
+    {
+        if (current_node_it == rhs.current_node_it)
+            return offset >= rhs.offset;
+        return current_node_it >= rhs.current_node_it;
+    }
+    //!\}
+
+    /*!\name Arithmetic operators
+     * \{
+     */
+    //!\brief Pre-increment, return updated iterator.
+    journal_decorator_iterator & operator++() noexcept
+    {
+        ++offset;
+        if (offset == (*current_node_it).length) // I am at the end of the segment
+        {
+            if (current_node_it != (decorator_ptr->journal_tree.end() - 1))
+            {
+                ++current_node_it;
+                offset = 0;
+            }
+        }
+        return *this;
+    }
+
+    //!\brief Post-increment, return previous iterator state.
+    journal_decorator_iterator operator++(int) noexcept
+    {
+        journal_decorator_iterator cpy{*this};
+        ++(*this);
+        return cpy;
+    }
+
+    //!\brief Pre-decrement, return updated iterator.
+    journal_decorator_iterator & operator--() noexcept
+    {
+        if (offset == 0) // I am at the end of the segment
+        {
+            --current_node_it;
+            offset = (*current_node_it).length; // points to the end but will be decremented at the end of this if clause
+            assert(offset != 0);
+        }
+        --offset;
+        return *this;
+    }
+
+    //!\brief Post-decrement, return previous iterator state.
+    journal_decorator_iterator operator--(int) noexcept
+    {
+        journal_decorator_iterator cpy{*this};
+        --(*this);
+        return cpy;
+    }
+
+    //!\brief Forward this iterator.
+    journal_decorator_iterator & operator+=(difference_type const skip) noexcept
+    {
+        offset += skip;
+        // TODO can/shall this be done by binary seach in logarithmic time?
+        while (offset > (*current_node_it).length) // I am at the end of the segment
+        {
+            offset -= (*current_node_it).length;
+            ++current_node_it;
+        }
+
+        // last move must be handled separately in case the iterator will point to the very end
+        if (offset == (*current_node_it).length)
+        {
+            if (current_node_it != (decorator_ptr->journal_tree.end() - 1))
+            {
+                ++current_node_it;
+                offset = 0;
+            }
+        }
+
+        return *this;
+    }
+
+    //!\brief Forward copy of this iterator.
+    journal_decorator_iterator operator+(difference_type const skip) const noexcept
+    {
+        journal_decorator_iterator cpy{*this};
+        return cpy += skip;
+    }
+
+    //!\brief Decrement iterator by skip.
+    journal_decorator_iterator & operator-=(difference_type const skip) noexcept
+    {
+        difference_type skip_cpy{skip};
+        while (offset < skip_cpy) // otherwise I would surpass the begin of the segment
+        {
+            skip_cpy -= offset;
+            --current_node_it;
+            offset = (*current_node_it).length; // points to the end but will be decremented at the end of this if clause
+        }
+        offset -= skip_cpy;
+        return *this;
+    }
+
+    //!\brief Return decremented copy of this iterator.
+    journal_decorator_iterator operator-(difference_type const skip) const noexcept
+    {
+        journal_decorator_iterator cpy{*this};
+        return cpy -= skip;
+    }
+
+    //!\brief Return offset between this and remote iterator's position.
+    difference_type operator-(journal_decorator_iterator const lhs) const noexcept
+    {
+        return static_cast<difference_type>(
+            ((*current_node_it).virtual_position + offset) - ((*lhs.current_node_it).virtual_position + lhs.offset));
+    }
+    //!\}
+
+    /*!\name Reference/Dereference operators
+     * \{
+    */
+    //!\brief Dereference operator returns element currently pointed at.
+    reference operator*() const
+    {
+        size_type src_pos = (*current_node_it).physical_position + offset;
+
+        switch ((*current_node_it).src)
+        {
+            case journal_node_type::source::HOST:
+                return (*((*decorator_ptr).host_ptr))[src_pos];
+            case journal_node_type::source::BUFFER:
+                return (*decorator_ptr).insertion_buffer[src_pos];
+            default:
+                assert(false && "Invalid segment source!");
+        }
+    }
+
+//    TODO when proxy iterator is implemented
+//    //!\brief Return pointer to this iterator.
+//    std::unique_ptr<value_type> operator->() const
+//    {
+//        return std::unique_ptr<value_type>{new value_type{*(*this)}};
+//    }
+
+//    //!\brief Return underlying container value currently pointed at.
+//    reference operator[](position_type const n) const noexcept(noexcept((*host)[pos+n]))
+//    {
+//        return (*host)[pos + n];
+//    }
+    //!\}
+private:
+    //!\brief Same as the journal_node_type of the journal_decorator
+    using journal_node_type = typename journal_decorator_type::journal_node_type;
+    //!\brief Same as the journal_tree_type of the journal_decorator
+    using journal_tree_type = typename journal_decorator_type::journal_tree_type;
+    //!\brief The (const) iterator type of the journal container type
+    using journal_tree_iterator_type = std::conditional_t<
+        std::is_const_v<journal_decorator_type>,
+        typename journal_tree_type::const_iterator,
+        typename journal_tree_type::iterator>;
+
+    //!\brief sets iterator to the end in constant time.
+    journal_decorator_iterator set(journal_tree_iterator_type node_it, size_type off)
+    {
+        current_node_it = node_it;
+        offset = off;
+        return *this;
+    }
+
+    //!\brief sets iterator to the end in constant time.
+    journal_decorator_iterator set_to_end()
+    {
+        journal_tree_iterator_type tree_end{decorator_ptr->journal_tree.end() - 1};
+        return set(tree_end, tree_end->length);
+    }
+
+    //!\brief A pointer to the journal_decorator to access or update the data members.
+    journal_decorator_type * decorator_ptr{nullptr};
+
+    //!\brief An iterator to the current journal_node of the journal_tree of the journal_decorator.
+    journal_tree_iterator_type current_node_it{};
+
+    //!/brief The relative offset to the current node start position to infer the current position.
+    size_type offset{0};
 };
 
 } // namespace seqan3

@@ -121,7 +121,7 @@ TEST(journal_decorator, function_size)
     EXPECT_EQ(host.size(), journal.size());
 }
 
-TEST(joutnal_decorator, function_assign)
+TEST(journal_decorator, function_assign)
 {
     journal_decorator<std::string> journal{};
 
@@ -163,4 +163,107 @@ TEST(journal_decorator, function_reset)
     // TODO insert, delete or do some other modification here when available
     journal.reset();
     EXPECT_EQ(host.size(), journal.size());
+}
+
+TEST(journal_decorator_iterator, construction)
+{
+    std::string host{"ACTG"};
+    journal_decorator<std::string> journal{host};
+
+    // Construction from journal decorator
+    journal_decorator_iterator journal_it{journal};
+
+    // Default construction.
+    journal_decorator_iterator<journal_decorator<std::string>> journal_default_iterator{};
+
+    // Copy construction.
+    journal_decorator_iterator journal_it_copied{journal_it};
+
+    // Copy assignment.
+    journal_decorator_iterator journal_it_copy_assigned = journal_it;
+
+    // Move construction.
+    journal_decorator_iterator journal_it_moved{std::move(journal_it)};
+
+    // Move assignment.
+    journal_decorator_iterator journal_it_move_assigned = std::move(journal_it_copied);
+}
+
+TEST(journal_decorator_iterator, comparison_operator)
+{
+    std::string host{"ACTG"};
+    journal_decorator<std::string> journal{host};
+    journal_decorator_iterator journal_it1{journal};
+    journal_decorator_iterator journal_it2{journal};
+    journal_decorator_iterator<journal_decorator<std::string>> journal_default_iterator{};
+
+    EXPECT_EQ(journal_it1, journal_it2);
+    EXPECT_NE(journal_it1, journal_default_iterator);
+    EXPECT_NE(journal_it2, journal_default_iterator);
+}
+
+TEST(journal_decorator_iterator, dereference_operator)
+{
+    std::vector<std::string> host{{"ACTG", "TGCA"}};
+    journal_decorator<std::vector<std::string>> journal{host};
+    journal_decorator_iterator journal_it{journal};
+
+    // dereference operator
+    EXPECT_EQ(*journal_it, host[0]);
+
+    // -> operator TODO
+    // EXPECT_EQ(journal_it->size(), 4u);
+}
+
+TEST(journal_decorator_iterator, arithmetic_operators_single_node)
+{
+    // since so far no modification (insert, erase) are implemented for the
+    // journal_decorator this first test only checks weather movement inside
+    // a single journal node works.
+
+    std::string host{"ACTGAGCTAGAGTCAGAGATCT"};
+    journal_decorator<std::string> journal{host};
+    journal_decorator_iterator journal_it{journal};
+
+    // pre-increment
+    journal_decorator_iterator pre_inc = ++journal_it;
+    EXPECT_EQ(*pre_inc, host[1]);
+    EXPECT_EQ(*journal_it, host[1]);
+
+    // post-increment
+    journal_decorator_iterator post_inc = journal_it++;
+    EXPECT_EQ(*post_inc, host[1]);
+    EXPECT_EQ(*journal_it, host[2]); //TODO ?
+
+    // pre-decrement
+    journal_decorator_iterator pre_dec = --journal_it;
+    EXPECT_EQ(*pre_dec, host[1]);
+    EXPECT_EQ(*journal_it, host[1]);
+
+    // post-decrement
+    journal_decorator_iterator post_dec = journal_it--;
+    EXPECT_EQ(*post_dec, host[1]);
+    EXPECT_EQ(*journal_it, host[0]); //TODO ?
+
+    // += operator
+    journal_it += 10;
+    EXPECT_EQ(*journal_it, host[10]);
+
+    // + operator
+    EXPECT_EQ(*(3 + journal_it), *(journal_it + 3));
+    EXPECT_EQ(*(3 + journal_it), host[13]);
+    EXPECT_EQ(*(journal_it + 3), host[13]);
+
+    // -= operator
+    journal_it -= 2;
+    EXPECT_EQ(*journal_it, host[8]);
+
+    // - operator
+    EXPECT_EQ(*(3 - journal_it), *(journal_it - 3));
+    EXPECT_EQ(*(3 - journal_it), host[5]);
+    EXPECT_EQ(*(journal_it - 3), host[5]);
+
+    // iterator subtraction
+    journal_decorator_iterator journal_it2{journal};
+    EXPECT_EQ((journal_it - journal_it2), 8u);
 }
