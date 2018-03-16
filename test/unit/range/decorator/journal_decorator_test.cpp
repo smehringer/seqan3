@@ -267,3 +267,37 @@ TEST(journal_decorator_iterator, arithmetic_operators_single_node)
     journal_decorator_iterator journal_it2{journal};
     EXPECT_EQ((journal_it - journal_it2), 8u);
 }
+
+TEST(journal_decorator, functions_begin_and_end)
+{
+    using jd_type = journal_decorator<std::string>;
+    std::string host{"AAAAAAAT"};
+    jd_type journal{host};
+    const jd_type const_journal{host};
+
+    // (c)begin
+    auto it_begin = journal.begin();
+    auto it_cbegin = journal.cbegin();
+    auto it_const_begin = const_journal.begin();
+
+    EXPECT_TRUE((std::is_same_v<decltype(it_begin), jd_type::iterator>));
+    EXPECT_TRUE((std::is_same_v<decltype(it_cbegin), jd_type::const_iterator>));
+    EXPECT_TRUE((std::is_same_v<decltype(it_const_begin), jd_type::const_iterator>));
+
+    EXPECT_EQ(*it_begin, 'A');
+    EXPECT_EQ(*it_cbegin, 'A');
+    EXPECT_EQ(*it_const_begin, 'A');
+
+    // (c)end
+    auto it_end = journal.end();
+    auto it_cend = journal.cend();
+    auto it_const_end = const_journal.end();
+
+    EXPECT_TRUE((std::is_same_v<decltype(it_end), jd_type::iterator>));
+    EXPECT_TRUE((std::is_same_v<decltype(it_cend), jd_type::const_iterator>));
+    EXPECT_TRUE((std::is_same_v<decltype(it_const_end), jd_type::const_iterator>));
+
+    EXPECT_EQ(*(--it_end), 'T');
+    EXPECT_EQ(*(--it_cend), 'T');
+    EXPECT_EQ(*(--it_const_end), 'T');
+}

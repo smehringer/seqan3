@@ -276,6 +276,46 @@ public:
     }
     //!\}
 
+    /*!\name Iterators
+     * \{
+     */
+    //!\brief Returns an iterator pointing to the start of the journal_decorator.
+    iterator begin()
+    {
+        return iterator{*this};
+    }
+
+    //!\brief Returns an const iterator pointing to the start of the journal_decorator.
+    const_iterator begin() const
+    {
+        return const_iterator{*this};
+    }
+
+    //!\brief Returns an const iterator pointing to the start of the const journal_decorator.
+    const_iterator cbegin() const
+    {
+        return const_iterator{*this};
+    }
+
+    //!\brief Returns an iterator pointing to the end of the journal_decorator.
+    iterator end()
+    {
+        return (iterator{*this}).set_to_end();
+    }
+
+    //!\brief Returns an const iterator pointing to the end of the journal_decorator.
+    const_iterator end() const
+    {
+        return (const_iterator{*this}).set_to_end();
+    }
+
+    //!\brief Returns an const iterator pointing to the end of the const journal_decorator.
+    const_iterator cend() const
+    {
+        return (const_iterator{*this}).set_to_end();
+    }
+    //!\}
+
     /*!\name Capacity
      * \{
      */
@@ -598,6 +638,9 @@ public:
 //    }
     //!\}
 private:
+    template <typename urng_t, typename traits_type>
+    friend class journal_decorator;
+
     //!\brief Same as the journal_node_type of the journal_decorator
     using journal_node_type = typename journal_decorator_type::journal_node_type;
     //!\brief Same as the journal_tree_type of the journal_decorator
