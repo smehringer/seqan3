@@ -394,6 +394,57 @@ protected:
     size_type length{0};
 };
 
+/*!\name Comparison operators.
+ * \brief Enables comparison between a journal_decorator and it's underlying range.
+ * \tparam range_type The range to compare to a decorated range of the same type.
+ * \tparam traits_type The traits type of the decorated range.
+ * \param rhs The first range/decorator to compare.
+ * \param rhs The second range/decorator to compare.
+ *
+ * This way we can check whether e.g. `host == journal_decorated_host` or
+ * `journal_decorated_host == host`. Note that one of the comparees must be a
+ * journal_decorator.
+ * \{
+ */
+//!brief Return `true` if \p rhs == \p lhs, `false` otherwise.
+template <typename range_type, typename traits_type>
+constexpr bool operator==(range_type const & rhs, journal_decorator<range_type, traits_type> const & lhs)
+{
+    if (rhs.size() != lhs.size())
+        return false;
+
+    auto rhs_it = rhs.begin();
+    auto lhs_it = lhs.begin();
+
+    for (; rhs_it != rhs.end(); ++rhs_it, ++lhs_it)
+        if (*rhs_it != *lhs_it)
+            return false;
+
+    return true;
+}
+
+//!brief Return `true` if \p rhs == \p lhs, `false` otherwise.
+template <typename range_type, typename traits_type>
+constexpr bool operator==(journal_decorator<range_type, traits_type> const & rhs, range_type const & lhs)
+{
+    return (lhs == rhs);
+}
+
+//!brief Return `true` if \p rhs != \p lhs, `false` otherwise.
+template <typename range_type, typename traits_type>
+constexpr bool operator!=(range_type const & rhs, journal_decorator<range_type, traits_type> const & lhs)
+{
+    return !(rhs == lhs);
+}
+
+//!brief Return `true` if \p rhs != \p lhs, `false` otherwise.
+template <typename range_type, typename traits_type>
+constexpr bool operator!=(journal_decorator<range_type, traits_type> const & rhs, range_type const & lhs)
+{
+    return !(rhs == lhs);
+}
+//!\}
+
 /*!\brief The iterator for the journal_decorator.
  * \tparam The journal_decorator type to itereate over.
  *

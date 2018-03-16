@@ -301,3 +301,24 @@ TEST(journal_decorator, functions_begin_and_end)
     EXPECT_EQ(*(--it_cend), 'T');
     EXPECT_EQ(*(--it_const_end), 'T');
 }
+
+TEST(journal_decorator, hetero_comparison_operator)
+{
+    std::string host{"ACTG"};
+    std::string host2{"GGG"};
+
+    journal_decorator<std::string> journal{host};
+    journal_decorator<std::string> journal2{host2};
+
+    EXPECT_TRUE(host == journal);
+    EXPECT_TRUE(journal == host);
+
+    EXPECT_FALSE(host2 == journal);
+    EXPECT_FALSE(journal == host2);
+
+    EXPECT_FALSE(host != journal);
+    EXPECT_FALSE(journal != host);
+
+    EXPECT_TRUE(host2 != journal);
+    EXPECT_TRUE(journal != host2);
+}
