@@ -319,6 +319,20 @@ public:
     {
         return *(const_iterator{*this} + pos);
     }
+
+    /*!\brief Returns a reference to the first element.
+     * \returns The reference to the element at the position 0.
+     */
+    reference front()
+    {
+        return *(iterator{*this});
+    }
+
+    //!\copydoc front
+    const_reference front() const
+    {
+        return *(const_iterator{*this});
+    }
     //!\}
 
     /*!\name Iterators

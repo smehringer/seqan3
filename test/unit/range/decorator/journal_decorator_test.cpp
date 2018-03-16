@@ -365,3 +365,22 @@ TEST(journal_decorator, function_random_access_operator)
     EXPECT_EQ(const_journal[2], 'T');
     EXPECT_EQ(const_journal[3], 'G');
 }
+
+TEST(journal_decorator, function_front)
+{
+    using jd_type = journal_decorator<std::string>;
+
+    // reference front
+    std::string host{"ACTG"};
+    jd_type journal{host};
+
+    EXPECT_TRUE((std::is_same_v<decltype(journal[0]), jd_type::reference>));
+
+    EXPECT_EQ(journal.front(), 'A');
+
+    // const_reference front
+    const jd_type const_journal{host};
+    EXPECT_TRUE((std::is_same_v<decltype(const_journal[0]), jd_type::const_reference>));
+
+    EXPECT_EQ(const_journal.front(), 'A');
+}
