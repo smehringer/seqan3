@@ -304,6 +304,21 @@ public:
 
         return *(const_iterator{*this} + pos);
     }
+
+    /*!\brief Returns a reference to the element at the specific location \p pos.
+     * \param pos The position of the element to return.
+     * \returns The reference to the element at the position \pos.
+     */
+    reference operator[](size_type pos)
+    {
+        return *(iterator{*this} + pos);
+    }
+
+    //!\copydoc operator[]
+    const_reference operator[](size_type pos) const
+    {
+        return *(const_iterator{*this} + pos);
+    }
     //!\}
 
     /*!\name Iterators
