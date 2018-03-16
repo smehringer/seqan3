@@ -322,3 +322,21 @@ TEST(journal_decorator, hetero_comparison_operator)
     EXPECT_TRUE(host2 != journal);
     EXPECT_TRUE(journal != host2);
 }
+
+TEST(journal_decorator, function_at)
+{
+    // reference at
+    std::string host{"ACTG"};
+    journal_decorator<std::string> journal{host};
+    EXPECT_EQ(journal.at(0), 'A');
+    EXPECT_EQ(journal.at(1), 'C');
+    EXPECT_EQ(journal.at(2), 'T');
+    EXPECT_EQ(journal.at(3), 'G');
+
+    // const_reference at
+    const journal_decorator<std::string> const_journal{host};
+    EXPECT_EQ(const_journal.at(0), 'A');
+    EXPECT_EQ(const_journal.at(1), 'C');
+    EXPECT_EQ(const_journal.at(2), 'T');
+    EXPECT_EQ(const_journal.at(3), 'G');
+}

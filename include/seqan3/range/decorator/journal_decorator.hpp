@@ -276,6 +276,36 @@ public:
     }
     //!\}
 
+    /*!\name Element Access
+     * \{
+     */
+    /*!\brief Returns a reference to the element at the specific location \p pos, with bounds checking.
+     * \param pos The position of the element to return.
+     * \returns The reference to the element at the position \pos.
+     * \throws std::out_of_range If the the position \pos is not within the bounds.
+     */
+    reference at(size_type pos)
+    {
+        if (pos < 0 || pos > (*this).size())
+            std::out_of_range(("position " + std::to_string(pos) +
+                               "is greater than range size " +
+                               std::to_string((*this).size())));
+
+        return *(iterator{*this} + pos);
+    }
+
+    //!\copydoc at
+    const_reference at(size_type pos) const
+    {
+        if (pos < 0 || pos > (*this).size())
+            std::out_of_range(("position " + std::to_string(pos) +
+                               "is greater than range size " +
+                               std::to_string((*this).size())));
+
+        return *(const_iterator{*this} + pos);
+    }
+    //!\}
+
     /*!\name Iterators
      * \{
      */
