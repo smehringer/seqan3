@@ -333,6 +333,20 @@ public:
     {
         return *(const_iterator{*this});
     }
+
+    /*!\brief Returns a reference to the last element.
+     * \returns The reference to the element at the position 0.
+     */
+    reference back()
+    {
+        return *(--((*this).end()));
+    }
+
+    //!\copydoc back
+    const_reference back() const
+    {
+        return *(--((*this).cend()));
+    }
     //!\}
 
     /*!\name Iterators

@@ -384,3 +384,22 @@ TEST(journal_decorator, function_front)
 
     EXPECT_EQ(const_journal.front(), 'A');
 }
+
+TEST(journal_decorator, function_back)
+{
+    using jd_type = journal_decorator<std::string>;
+
+    // reference back
+    std::string host{"ACTG"};
+    jd_type journal{host};
+
+    EXPECT_TRUE((std::is_same_v<decltype(journal[0]), jd_type::reference>));
+
+    EXPECT_EQ(journal.back(), 'G');
+
+    // const_reference back
+    const jd_type const_journal{host};
+    EXPECT_TRUE((std::is_same_v<decltype(const_journal[0]), jd_type::const_reference>));
+
+    EXPECT_EQ(const_journal.back(), 'G');
+}
