@@ -403,3 +403,43 @@ TEST(journal_decorator, function_back)
 
     EXPECT_EQ(const_journal.back(), 'G');
 }
+
+TEST(journal_decorator_iterator, function_insert)
+{
+    std::string host{"AAAAAAAAAAAAGG"};
+    std::string ins{"TT"};
+    std::string ins2{"CCC"};
+    journal_decorator<std::string> journal{host};
+    journal_decorator<std::string> empty_journal{};
+    journal_decorator_iterator journal_it{journal};
+
+    // insert into an empty journal
+    empty_journal.insert(empty_journal.begin(), host.begin(), host.end());
+    EXPECT_EQ(empty_journal, host);
+
+    // insert at the very first node
+    journal_it = journal.insert(journal_it, ins.begin(), ins.end());
+    EXPECT_EQ(journal, std::string("TTAAAAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'T');
+    EXPECT_EQ(*(journal_it + 1), 'T');
+
+    // insert in some middle HOST node that has to be split
+    journal_it = journal.insert(journal_it+5, ins.begin(), ins.end());
+    EXPECT_EQ(journal, std::string("TTAAATTAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'T');
+    EXPECT_EQ(*(journal_it + 1), 'T');
+
+    // insert in some middle BUFFER node that has to be split
+    journal_it = journal.insert(journal_it-4, ins2.begin(), ins2.end());
+    EXPECT_EQ(journal, std::string("TCCCTAAATTAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'C');
+    EXPECT_EQ(*(journal_it + 1), 'C');
+    EXPECT_EQ(*(journal_it + 2), 'C');
+
+    // insert at the very end
+    journal_it = journal.insert(journal.end(), ins2.begin(), ins2.end());
+    EXPECT_EQ(journal, std::string("TCCCTAAATTAAAAAAAAAGGCCC"));
+    EXPECT_EQ(*journal_it, 'C');
+    EXPECT_EQ(*(journal_it + 1), 'C');
+    EXPECT_EQ(*(journal_it + 2), 'C');
+}

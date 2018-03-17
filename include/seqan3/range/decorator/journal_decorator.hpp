@@ -40,6 +40,7 @@
 #pragma once
 
 #include <cassert>
+#include <iterator>
 #include <memory>
 
 #include <seqan3/core/concept/core.hpp>       // integral_concept
@@ -442,6 +443,181 @@ public:
         insertion_buffer.clear();
         length = (*host_ptr).size();
         journal_tree = {{journal_node_type::source::HOST, length, 0, 0, 0}};
+    }
+
+    /*!\brief Inserts a range into the journal_decorator at \p pos_it
+     * \tparam iterator_type Input range iterator, must satisfy the seqan3::input_iterator_concept.
+     * \param pos_it The iterator pointing to the position where the range is to be inserted.
+     * \pram input_begin_it The begin iterator of the range to be inserted.
+     * \pram input_end_it The end iterator of the range to be inserted.
+     * \returns An iterator pointing to the start of the inserted sequence or the
+     *          same position if `input_begin_it == input_end_it`.
+     *
+     * Note that by design the underlying host range is not modified by inserting
+     * into the journal_decorator. Only the difference will be stored in the
+     * internal data structure.
+     * ```cpp
+     * std::string host{"AAAAAA"};
+     * std::string ins{"TT"};
+     * journal_decorator<std::string> journal{host};
+     * journal.insert(journal.begin() + 2, ins.begin(), ins.end());
+     *
+     * std::cout << journal << std::endl; // AATTAAAA
+     * std::cout << host << std::endl;    // AAAAAA
+     * ```
+     *
+     * ### Exception
+     *
+     * The exception guarantee depends on the container type storing journal node
+     * which can be specified over the journal_decorator `traits_type`.
+     * When the container type ensures the strong exception guarantee for insert,
+     * push_back, swap, move assignment and iterating over it, like it is the
+     * case for default container `std::vector` then insert() also guarantees
+     * strong exception safety.
+     *
+     * ### Complexity
+`    *
+     * Inserting into the journal_decorator at most linear over the size of the
+     * input range and linear over the current length of the journal node
+     * container.
+     *
+     * ### Thread safety
+     *
+     * This container provides no thread-safety beyond the promise given also by the STL that all
+     * calls to `const` member function are safe from multiple threads (as long as no thread calls
+     * a non-`const` member function at the same time).
+     *
+     *
+     */
+    template <input_iterator_concept iterator_type>
+    iterator insert(iterator pos_it, iterator_type input_begin_it, iterator_type input_end_it)
+    {
+        /* In general, we need to copy the range into the insertion_buffer
+         * and add a new journal node pointing to it.
+         * The following cases need to be considered for inserting a node:
+         * (1) The journal_tree is empty -> we have cannot access the iterator
+         *     pos_it and need to insert directly.
+         * (2) We want to insert at the very end -> add node right of last node
+         * (3) We want to insert in between node -> add note left of pos_it
+         * (4) We want to insert inside a node   -> split node into 3
+        */
+        using source_type = typename journal_node_type::source;
+        using tree_iterator_type = typename journal_tree_type::iterator;
+
+        if (input_begin_it == input_end_it)
+            return pos_it; // nothing to insert
+
+        // New node source - the source type is always the insertion buffer
+        source_type const new_node_source{journal_node_type::source::BUFFER};
+        // New node length - the length is computed once from the input range
+        size_type const new_node_length{std::distance(input_begin_it, input_end_it)};
+
+        if (journal_tree.empty()) // case (1)
+        {
+            // update insertion buffer
+            insertion_buffer.insert(insertion_buffer.end(), input_begin_it, input_end_it);
+            // update journal nodes
+            journal_tree.push_back({new_node_source, new_node_length, 0, 0, 0});
+            // update length
+            length += new_node_length;
+
+            return (iterator{*this}).set(journal_tree.begin(), 0);
+        }
+
+        // New node virtual position - the vpos is the position pointed to by the iterator pos_it
+        size_type const new_node_virtual_position{pos_it.current_node_it->virtual_position + pos_it.offset};
+        // New node physical position - the ppos is at end of the insertion buffer where the new range is inserted
+        size_type const new_node_physical_position{insertion_buffer.size()};
+        // New node physical origin position - will be set differently in each case
+        size_type new_node_physical_origin_position{0};
+        // current node iterator where sequence is to be inserted.
+        tree_iterator_type const current_node_it = pos_it.current_node_it;
+        // cash position of current_node_it
+        size_type current_node_pos = current_node_it - journal_tree.begin();
+        // initialize the position of nodes to be updated later on
+        size_type shift_right_of = current_node_pos;
+
+        assert(new_node_virtual_position <= length); // pos_it should be in range [0, length]
+        assert(current_node_it->virtual_position <= new_node_virtual_position);
+        assert(current_node_it->virtual_position + current_node_it->length >= new_node_virtual_position);
+
+        if (new_node_virtual_position == length) // case (2)
+        {
+            // update journal nodes
+            journal_tree.push_back({new_node_source,
+                                    new_node_length,
+                                    new_node_virtual_position,
+                                    new_node_physical_position,
+                                    journal_tree.end()->physical_origin_position});
+            ++current_node_pos;
+            ++shift_right_of;
+        }
+        else if (current_node_it->virtual_position == new_node_virtual_position) // case (3)
+        {
+            if (current_node_it != journal_tree.begin())
+                new_node_physical_origin_position = (current_node_it - 1)->physical_origin_position;
+
+            // update journal nodes
+            journal_tree.insert(current_node_it, {new_node_source,
+                                                  new_node_length,
+                                                  new_node_virtual_position,
+                                                  new_node_physical_position,
+                                                  new_node_physical_origin_position});
+            ++shift_right_of;
+        }
+        else // case (4)
+        {
+            // split current node into two and place the new insertion node in
+            // the middle ---> lhs_node ~ new_node ~ rhs_node
+
+            std::array<journal_node_type, 3> buffer{}; // The buffer to store the 3 nodes
+
+            // Compute the size of the left and right flank of the two nodes
+            // flanking the new insertion node.
+            size_type const left_flank_len{new_node_virtual_position - current_node_it->virtual_position};
+            size_type const right_flank_len{current_node_it->length - left_flank_len};
+
+            buffer[0] = {current_node_it->src,
+                         left_flank_len,
+                         current_node_it->virtual_position,
+                         current_node_it->physical_position,
+                         current_node_it->physical_origin_position};
+
+            buffer[1] = {new_node_source,
+                         new_node_length,
+                         new_node_virtual_position,
+                         new_node_physical_position,
+                         current_node_it->physical_origin_position};
+
+            buffer[2] = {current_node_it->src,
+                         right_flank_len,
+                         new_node_virtual_position + new_node_length,
+                         current_node_it->physical_position + left_flank_len,
+                         ((current_node_it->src == journal_node_type::source::BUFFER) ?
+                            current_node_it->physical_origin_position :
+                            current_node_it->physical_origin_position + left_flank_len)};
+
+            ++current_node_pos;
+            std::swap(*current_node_it, buffer[2]);
+            journal_tree.insert(current_node_it, buffer.begin(), buffer.begin() + 2);
+            shift_right_of += 3;
+        }
+
+        // Update journal entries right of pos.
+        assert(shift_right_of <= journal_tree.size());
+        for (auto it = journal_tree.begin() + shift_right_of; it != journal_tree.end(); ++it)
+        {
+            it->virtual_position += new_node_length;
+            if (it != journal_tree.begin() && it->src == journal_node_type::source::BUFFER)
+                it->physical_origin_position = (it - 1)->physical_origin_position;
+        }
+
+        // update the insertion buffer
+        insertion_buffer.insert(insertion_buffer.end(), input_begin_it, input_end_it);
+        // update the length
+        length += new_node_length;
+
+        return (iterator{*this}).set((journal_tree.begin() + current_node_pos), 0);
     }
     //!\}
 
