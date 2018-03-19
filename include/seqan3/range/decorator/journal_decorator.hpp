@@ -487,10 +487,11 @@ public:
      * calls to `const` member function are safe from multiple threads (as long as no thread calls
      * a non-`const` member function at the same time).
      *
-     *
      */
-    template <input_iterator_concept iterator_type>
-    iterator insert(iterator pos_it, iterator_type input_begin_it, iterator_type input_end_it)
+    template <forward_iterator_concept iterator_type>
+    iterator insert(const_iterator pos_it,
+                    iterator_type input_begin_it,
+                    iterator_type input_end_it)
     {
         /* In general, we need to copy the range into the insertion_buffer
          * and add a new journal node pointing to it.
@@ -510,7 +511,7 @@ public:
         // New node source - the source type is always the insertion buffer
         source_type const new_node_source{journal_node_type::source::BUFFER};
         // New node length - the length is computed once from the input range
-        size_type const new_node_length{std::distance(input_begin_it, input_end_it)};
+        size_type const new_node_length{static_cast<size_type>(std::distance(input_begin_it, input_end_it))};
 
         if (journal_tree.empty()) // case (1)
         {
@@ -619,6 +620,21 @@ public:
 
         return (iterator{*this}).set((journal_tree.begin() + current_node_pos), 0);
     }
+
+    template <forward_iterator_concept iterator_type>
+    void insert(iterator pos_it,
+                iterator_type input_begin_it,
+                iterator_type input_end_it)
+    {
+        insert(pos_it, input_begin_it, input_end_it);
+    }
+
+    iterator insert(iterator pos_it,
+                    std::initializer_list<value_type> ilist)
+    {
+        return insert(pos_it, ilist.begin(), ilist.end());
+    }
+
     //!\}
 
 protected:
