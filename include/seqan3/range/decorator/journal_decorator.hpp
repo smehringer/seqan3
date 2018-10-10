@@ -43,10 +43,10 @@
 #include <iterator>
 #include <memory>
 
-#include <seqan3/core/concept/core.hpp>       // integral_concept
-#include <seqan3/core/concept/iterator.hpp>   // input_iterator_concept
-#include <seqan3/range/container/concept.hpp> // random_access_sequence_concept
-#include <seqan3/range/concept.hpp>           // random_access_range_concept
+#include <seqan3/std/concepts>       // integral_concept
+// #include <seqan3/core/concept/iterator.hpp>   // std::InputIterator
+#include <seqan3/std/ranges>                 // std::ranges::RandomAccessRange
+#include <seqan3/range/container/concept.hpp>// random_access_sequence_concept
 #include <seqan3/range/decorator/journal_decorator_detail.hpp>
 #include <seqan3/range/detail/random_access_iterator.hpp>
 
@@ -58,18 +58,18 @@ namespace seqan3
  */
 //!\cond
 template <typename t>
-concept bool journal_decorator_traits_concept = requires (t v)
+concept journal_decorator_traits_concept = requires (t v)
 {
     // Journal Node Container
     typename t::template journal_container_type<detail::journal_node<uint32_t, uint32_t>>;
     // the insertion buffer must have random access and modifiers
-    requires random_access_sequence_concept<
+    requires random_access_container_concept<
         typename t::template journal_container_type<detail::journal_node<uint32_t, uint32_t>>>;
 
     // Insertion Buffer Container
     typename t::template insertion_buffer_type<uint32_t>;
     // the insertion buffer must have random access and modifiers
-    requires random_access_sequence_concept<
+    requires random_access_container_concept<
         typename t::template insertion_buffer_type<uint32_t>>;
 };
 //!\endCond
@@ -97,7 +97,7 @@ template<typename journal_decorator_type>
 class journal_decorator_iterator; // Forward declaration
 //!\endCond
 
-template <random_access_range_concept urng_t,
+template <std::ranges::RandomAccessRange urng_t,
           journal_decorator_traits_concept traits_type = journal_decorator_default_traits>
 class journal_decorator
 {
@@ -166,7 +166,7 @@ public:
     }
 
     /*!\brief Construct a new journal_decorator by assigning from two iterators.
-     * \tparam iterator_type Must satisfy the seqan3::input_iterator_concept and dereference to the same value_type.
+     * \tparam iterator_type Must satisfy the std::InputIterator and dereference to the same value_type.
      * \param begin The begin iterator of the range to be assigned.
      * \param end The end iterator of the range to be assigned.
      *
@@ -178,7 +178,7 @@ public:
      * the insertion buffer and the runtime/memory advantages of the journal_decorator
      * are not existent anymore.
      */
-    template <input_iterator_concept iterator_type>
+    template <std::InputIterator iterator_type>
     journal_decorator(iterator_type begin, iterator_type end)
     {
         assign(begin, end);
@@ -218,7 +218,7 @@ public:
     ~journal_decorator() = default;
 
     /*!\brief Assign a new range via iterators to the journal_decorator.
-     * \tparam iterator_type Must satisfy the seqan3::input_iterator_concept and dereference to the same value_type.
+     * \tparam iterator_type Must satisfy the seqan3::std::InputIterator and dereference to the same value_type.
      * \param begin The begin iterator of the range to be assigned.
      * \param end The end iterator of the range to be assigned.
      *
@@ -228,7 +228,7 @@ public:
      * the insertion buffer and the runtime/memory advantages of the journal_decorator
      * are not existent anymore.
      */
-    template <input_iterator_concept iterator_type>
+    template <std::InputIterator iterator_type>
         requires std::is_same_v<value_type, std::remove_const_t<typename std::iterator_traits<iterator_type>::value_type>>
     void assign(iterator_type begin, iterator_type end)
     {
@@ -446,7 +446,7 @@ public:
     }
 
     /*!\brief Inserts a range into the journal_decorator at \p pos_it
-     * \tparam iterator_type Input range iterator, must satisfy the seqan3::input_iterator_concept.
+     * \tparam iterator_type Input range iterator, must satisfy the seqan3::std::InputIterator.
      * \param pos_it The iterator pointing to the position where the range is to be inserted.
      * \pram input_begin_it The begin iterator of the range to be inserted.
      * \pram input_end_it The end iterator of the range to be inserted.
@@ -488,7 +488,7 @@ public:
      * a non-`const` member function at the same time).
      *
      */
-    template <forward_iterator_concept iterator_type>
+    template <std::ForwardIterator iterator_type>
     iterator insert(const_iterator pos_it,
                     iterator_type input_begin_it,
                     iterator_type input_end_it)
@@ -621,7 +621,7 @@ public:
         return (iterator{*this}).set((journal_tree.begin() + current_node_pos), 0);
     }
 
-    template <forward_iterator_concept iterator_type>
+    template <std::ForwardIterator iterator_type>
     void insert(iterator pos_it,
                 iterator_type input_begin_it,
                 iterator_type input_end_it)
