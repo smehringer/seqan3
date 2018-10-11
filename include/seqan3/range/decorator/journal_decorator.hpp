@@ -448,10 +448,10 @@ public:
     /*!\brief Inserts a range into the journal_decorator at \p pos_it
      * \tparam iterator_type Input range iterator, must satisfy the seqan3::std::InputIterator.
      * \param pos_it The iterator pointing to the position where the range is to be inserted.
-     * \pram input_begin_it The begin iterator of the range to be inserted.
-     * \pram input_end_it The end iterator of the range to be inserted.
+     * \pram first The begin iterator of the range to be inserted.
+     * \pram last The end iterator of the range to be inserted.
      * \returns An iterator pointing to the start of the inserted sequence or the
-     *          same position if `input_begin_it == input_end_it`.
+     *          same position if `first == last`.
      *
      * Note that by design the underlying host range is not modified by inserting
      * into the journal_decorator. Only the difference will be stored in the
@@ -468,7 +468,7 @@ public:
      *
      * ### Exception
      *
-     * The exception guarantee depends on the container type storing journal node
+     * The exception guarantee depends on the container type storing journal nodes
      * which can be specified over the journal_decorator `traits_type`.
      * When the container type ensures the strong exception guarantee for insert,
      * push_back, swap, move assignment and iterating over it, like it is the
@@ -489,34 +489,80 @@ public:
      *
      */
     template <std::ForwardIterator iterator_type>
-    iterator insert(const_iterator pos_it,
-                    iterator_type input_begin_it,
-                    iterator_type input_end_it)
+    iterator insert(iterator pos_it, // how can this be const_iterator as documented by cppreference
+                    iterator_type first,
+                    iterator_type last)
+    {
+        insertion_buffer.insert(insertion_buffer.end(), first, last);
+        return insert_insertion_node(pos_it, static_cast<size_type>(std::distance(first, last)));
+    }
+
+    iterator insert(iterator pos_it, std::initializer_list<value_type> ilist)
+    {
+        insertion_buffer.insert(insertion_buffer.end(), ilist.begin(), ilist.end());
+        return insert_insertion_node(pos_it, ilist.size());
+    }
+
+    iterator insert(iterator pos_it, value_type const & value)
+    {
+        insertion_buffer.push_back(value);
+        return insert_insertion_node(pos_it, 1);
+    }
+
+    iterator insert(iterator pos_it, size_type count, value_type const & value)
+    {
+        insertion_buffer.insert(insertion_buffer.end(), count, value);
+        return insert_insertion_node(pos_it, count);
+    }
+    //!\}
+
+protected:
+    //!\brief The type of journal_node that store the modification information.
+    using journal_node_type = detail::journal_node<size_type, size_type>;
+
+    /*!\brief The container type for storing journal_nodes.
+     *
+     * The type properties of the container are important for runtime of many
+     * member/free function of the journal decorator and should be chosen
+     * carefully based on the type of application.
+     */
+    using journal_tree_type = typename traits_type::template journal_container_type<journal_node_type>;
+
+    //!/brief A pointer to the underlying range that is to be decorated.
+    urng_t const * host_ptr{nullptr};
+    //!\brief A buffer for storing inserted novel subsequences in a concatenated fashion.
+    insertion_buffer_type insertion_buffer{};
+    //!\brief Stores modifications to the underlying range using journal entries.
+    journal_tree_type journal_tree{};
+    //!\brief Tracks the length for constant size access.
+    size_type length{0};
+
+    iterator insert_insertion_node(iterator pos_it, size_type insertion_length)
     {
         /* In general, we need to copy the range into the insertion_buffer
          * and add a new journal node pointing to it.
          * The following cases need to be considered for inserting a node:
-         * (1) The journal_tree is empty -> we have cannot access the iterator
+         * (1) The journal_tree is empty -> we cannot access the iterator
          *     pos_it and need to insert directly.
          * (2) We want to insert at the very end -> add node right of last node
-         * (3) We want to insert in between node -> add note left of pos_it
+         * (3) We want to insert in between node -> add node left of pos_it
          * (4) We want to insert inside a node   -> split node into 3
         */
         using source_type = typename journal_node_type::source;
         using tree_iterator_type = typename journal_tree_type::iterator;
 
-        if (input_begin_it == input_end_it)
+        if (insertion_length == 0)
             return pos_it; // nothing to insert
 
         // New node source - the source type is always the insertion buffer
         source_type const new_node_source{journal_node_type::source::BUFFER};
         // New node length - the length is computed once from the input range
-        size_type const new_node_length{static_cast<size_type>(std::distance(input_begin_it, input_end_it))};
+        size_type const new_node_length{insertion_length};
 
         if (journal_tree.empty()) // case (1)
         {
             // update insertion buffer
-            insertion_buffer.insert(insertion_buffer.end(), input_begin_it, input_end_it);
+            // insertion_buffer.insert(insertion_buffer.end(), first, last);
             // update journal nodes
             journal_tree.push_back({new_node_source, new_node_length, 0, 0, 0});
             // update length
@@ -528,7 +574,7 @@ public:
         // New node virtual position - the vpos is the position pointed to by the iterator pos_it
         size_type const new_node_virtual_position{pos_it.current_node_it->virtual_position + pos_it.offset};
         // New node physical position - the ppos is at end of the insertion buffer where the new range is inserted
-        size_type const new_node_physical_position{insertion_buffer.size()};
+        size_type const new_node_physical_position{insertion_buffer.size() - insertion_length};
         // New node physical origin position - will be set differently in each case
         size_type new_node_physical_origin_position{0};
         // current node iterator where sequence is to be inserted.
@@ -614,49 +660,12 @@ public:
         }
 
         // update the insertion buffer
-        insertion_buffer.insert(insertion_buffer.end(), input_begin_it, input_end_it);
+        // insertion_buffer.insert(insertion_buffer.end(), first, last);
         // update the length
         length += new_node_length;
 
         return (iterator{*this}).set((journal_tree.begin() + current_node_pos), 0);
     }
-
-    template <std::ForwardIterator iterator_type>
-    void insert(iterator pos_it,
-                iterator_type input_begin_it,
-                iterator_type input_end_it)
-    {
-        insert(pos_it, input_begin_it, input_end_it);
-    }
-
-    iterator insert(iterator pos_it,
-                    std::initializer_list<value_type> ilist)
-    {
-        return insert(pos_it, ilist.begin(), ilist.end());
-    }
-
-    //!\}
-
-protected:
-    //!\brief The type of journal_node that store the modification information.
-    using journal_node_type = detail::journal_node<size_type, size_type>;
-
-    /*!\brief The container type for storing journal_nodes.
-     *
-     * The type properties of the container are important for runtime of many
-     * member/free function of the journal decorator and should be chosen
-     * carefully based on the type of application.
-     */
-    using journal_tree_type = typename traits_type::template journal_container_type<journal_node_type>;
-
-    //!/brief A pointer to the underlying range that is to be decorated.
-    urng_t const * host_ptr{nullptr};
-    //!\brief A buffer for storing inserted novel subsequences in a concatenated fashion.
-    insertion_buffer_type insertion_buffer{};
-    //!\brief Stores modifications to the underlying range using journal entries.
-    journal_tree_type journal_tree{};
-    //!\brief Tracks the length for constant size access.
-    size_type length{0};
 };
 
 /*!\name Comparison operators.

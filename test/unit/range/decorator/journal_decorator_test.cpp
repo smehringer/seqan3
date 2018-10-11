@@ -204,7 +204,10 @@ TEST(journal_decorator_iterator, comparison_operator)
 
 TEST(journal_decorator_iterator, dereference_operator)
 {
-    std::vector<std::string> host{{"ACTG", "TGCA"}};
+    // std::vector<std::string> host{{"ACTG", "TGCA"}}; throws an expect if executed with -fsanitize=address -fsanitize=undefined
+    std::vector<std::string> host;
+    host.push_back("ACTG");
+    host.push_back("TGCA");
     journal_decorator<std::vector<std::string>> journal{host};
     journal_decorator_iterator journal_it{journal};
 
@@ -404,7 +407,7 @@ TEST(journal_decorator, function_back)
     EXPECT_EQ(const_journal.back(), 'G');
 }
 
-TEST(journal_decorator_iterator, function_insert)
+TEST(journal_decorator_iterator, function_insert_range)
 {
     std::string host{"AAAAAAAAAAAAGG"};
     std::string ins{"TT"};
@@ -417,37 +420,52 @@ TEST(journal_decorator_iterator, function_insert)
     empty_journal.insert(empty_journal.begin(), host.begin(), host.end());
     EXPECT_EQ(empty_journal, host);
 
-    // // insert at the very first node
-    // journal_it = journal.insert(journal_it, ins.begin(), ins.end());
-    // EXPECT_EQ(journal, std::string("TTAAAAAAAAAAAAGG"));
-    // EXPECT_EQ(*journal_it, 'T');
-    // EXPECT_EQ(*(journal_it + 1), 'T');
+    // insert at the very first node
+    journal_it = journal.insert(journal_it, ins.begin(), ins.end());
+    EXPECT_EQ(journal, std::string("TTAAAAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'T');
+    EXPECT_EQ(*(journal_it + 1), 'T');
 
-    // // insert in some middle HOST node that has to be split
-    // journal_it = journal.insert(journal_it+5, ins.begin(), ins.end());
-    // EXPECT_EQ(journal, std::string("TTAAATTAAAAAAAAAGG"));
-    // EXPECT_EQ(*journal_it, 'T');
-    // EXPECT_EQ(*(journal_it + 1), 'T');
+    // insert in some middle HOST node that has to be split
+    journal_it = journal.insert(journal_it+5, ins.begin(), ins.end());
+    EXPECT_EQ(journal, std::string("TTAAATTAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'T');
+    EXPECT_EQ(*(journal_it + 1), 'T');
 
-    // // insert in some middle BUFFER node that has to be split
-    // journal_it = journal.insert(journal_it-4, ins2.begin(), ins2.end());
-    // EXPECT_EQ(journal, std::string("TCCCTAAATTAAAAAAAAAGG"));
-    // EXPECT_EQ(*journal_it, 'C');
-    // EXPECT_EQ(*(journal_it + 1), 'C');
-    // EXPECT_EQ(*(journal_it + 2), 'C');
+    // insert in some middle BUFFER node that has to be split
+    journal_it = journal.insert(journal_it-4, ins2.begin(), ins2.end());
+    EXPECT_EQ(journal, std::string("TCCCTAAATTAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'C');
+    EXPECT_EQ(*(journal_it + 1), 'C');
+    EXPECT_EQ(*(journal_it + 2), 'C');
 
-    // // insert at the very end
-    // journal_it = journal.insert(journal.end(), ins2.begin(), ins2.end());
-    // EXPECT_EQ(journal, std::string("TCCCTAAATTAAAAAAAAAGGCCC"));
-    // EXPECT_EQ(*journal_it, 'C');
-    // EXPECT_EQ(*(journal_it + 1), 'C');
-    // EXPECT_EQ(*(journal_it + 2), 'C');
+    // insert at the very end
+    journal_it = journal.insert(journal.end(), ins2.begin(), ins2.end());
+    EXPECT_EQ(journal, std::string("TCCCTAAATTAAAAAAAAAGGCCC"));
+    EXPECT_EQ(*journal_it, 'C');
+    EXPECT_EQ(*(journal_it + 1), 'C');
+    EXPECT_EQ(*(journal_it + 2), 'C');
 
-    // // initializer list
-    // journal.reset();
-    // EXPECT_EQ(journal, host);
-    // journal_it = journal.insert(journal.begin(), {'T', 'T'});
-    // EXPECT_EQ(journal, std::string("TTAAAAAAAAAAAAGG"));
-    // EXPECT_EQ(*journal_it, 'T');
-    // EXPECT_EQ(*(journal_it + 1), 'T');
+    // initializer list
+    journal.reset();
+    EXPECT_EQ(journal, host);
+    journal_it = journal.insert(journal.begin(), {'T', 'T'});
+    EXPECT_EQ(journal, std::string("TTAAAAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'T');
+    EXPECT_EQ(*(journal_it + 1), 'T');
+
+    // value
+    journal.reset();
+    char ch{'T'};
+    EXPECT_EQ(journal, host);
+    journal_it = journal.insert(journal.begin(), ch);
+    EXPECT_EQ(journal, std::string("TAAAAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'T');
+
+    // count
+    journal.reset();
+    EXPECT_EQ(journal, host);
+    journal_it = journal.insert(journal.begin(), 7, ch);
+    EXPECT_EQ(journal, std::string("TTTTTTTAAAAAAAAAAAAGG"));
+    EXPECT_EQ(*journal_it, 'T');
 }
