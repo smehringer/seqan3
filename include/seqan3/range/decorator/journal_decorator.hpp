@@ -450,6 +450,40 @@ public:
         journal_tree = {{journal_node_type::source::HOST, length, 0, 0, 0}};
     }
 
+    /*!\brief Exchanges the contents of the journal_decorator with those of other.
+     *
+     * The function delegated to std::swap for each of it's member variables.
+     *
+     * ### Exception
+     *
+     * The exception guarantee depends on the container type storing journal nodes
+     * and the insertion buffer,
+     * which can be specified over the journal_decorator `traits_type`.
+     * When the container types ensures the strong exception guarantee for swap,
+     * like it is the case for default container `std::vector`,
+     * strong exception safety is also guaranteed.
+     *
+     * ### Complexity
+     *
+     * The complexity depends on the complexity of using std::swap on the
+     * journal_node container and the insertion buffer,
+     * which can be specified over the journal_decorator `traits_type`.
+     *
+     * ### Thread safety
+     *
+     * This container provides no thread-safety beyond the promise given also by the STL that all
+     * calls to `const` member function are safe from multiple threads (as long as no thread calls
+     * a non-`const` member function at the same time).
+     *
+     */
+    void swap(journal_decorator & other)
+    {
+        std::swap(host_ptr, other.host_ptr);
+        std::swap(insertion_buffer, other.insertion_buffer);
+        std::swap(journal_tree, other.journal_tree);
+        std::swap(length, other.length);
+    }
+
     /*!\brief Inserts a value into the journal_decorator at \p pos_it.
      * \param[in] pos_it The iterator pointing to the position after which the range is to be inserted.
      * \param[in] value  The value to insert.

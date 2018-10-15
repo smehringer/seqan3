@@ -469,3 +469,30 @@ TEST(journal_decorator_iterator, function_insert_range)
     EXPECT_EQ(journal, std::string("TTTTTTTAAAAAAAAAAAAGG"));
     EXPECT_EQ(*journal_it, 'T');
 }
+
+TEST(journal_decorator, function_swap)
+{
+    using jd_type = journal_decorator<std::string>;
+
+    std::string host1{"ACTG"};
+    std::string host2{"ACTG"};
+    jd_type journal1{host1};
+    jd_type journal2{host2};
+    journal1.insert(journal1.begin(), {'T', 'T'});
+    journal2.insert(journal2.begin() + 1, {'C', 'G', 'A'});
+    std::string expected1{"TTACTG"};
+    std::string expected2{"ACGACTG"};
+
+    EXPECT_EQ(journal1, expected1);
+    EXPECT_EQ(journal2, expected2);
+
+    journal1.swap(journal2);
+
+    EXPECT_EQ(journal1, expected2);
+    EXPECT_EQ(journal2, expected1);
+
+    std::swap(journal1, journal2); // delegated to member function
+
+    EXPECT_EQ(journal1, expected1);
+    EXPECT_EQ(journal2, expected2);
+}
