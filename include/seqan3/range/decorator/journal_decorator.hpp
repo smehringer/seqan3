@@ -72,9 +72,9 @@ concept journal_decorator_traits_concept = requires (t v)
     requires random_access_container_concept<
         typename t::template insertion_buffer_type<uint32_t>>;
 };
-//!\endCond
+//!\endcond
 
-/*\brief The default trait_types a custom traits_type can inherit from
+/*!\brief The default trait_types a custom traits_type can inherit from
  * \tparam position_type The type of a position in the host sequence or insertion buffer.
  * \tparam size_type The type of the length of segments of the host sequence or insertion buffer.
  * \tparam journal_container_type The container type holding the journal entries.
@@ -85,9 +85,11 @@ concept journal_decorator_traits_concept = requires (t v)
  */
 struct journal_decorator_default_traits
 {
+    //!\brief The container type of the journal nodes. Default: std::vector.
     template <typename journal_node_type>
     using journal_container_type = std::vector<journal_node_type>;
 
+    //!\brief The container type of the insertion buffer. Default: std::vector.
     template <typename value_type>
     using insertion_buffer_type = std::vector<value_type>;
 };
@@ -95,8 +97,9 @@ struct journal_decorator_default_traits
 //!\cond
 template<typename journal_decorator_type>
 class journal_decorator_iterator; // Forward declaration
-//!\endCond
+//!\endcond
 
+//!\brief The journal decorator class TODO
 template <std::ranges::RandomAccessRange urng_t,
           journal_decorator_traits_concept traits_type = journal_decorator_default_traits>
 class journal_decorator
@@ -149,7 +152,7 @@ public:
     journal_decorator(urng_t const && urange) = delete;
 
     /*!\brief Constructs a journal_decorator by assigning a sequence of replicated values.
-     * \param count The number of replications of \val and after assignment the new length.
+     * \param count The number of replications of val and after assignment the new length.
      * \param val The value to be replicated as a new range.
      *
      * Delegates to assign(count, value).
@@ -158,7 +161,7 @@ public:
      * it and insert the new range into the insertion buffer. Note that as a
      * consequence every subsequent operation on the journal_decorator is on
      * the insertion buffer and the runtime/memory advantages of the journal_decorator
-     * are not existent anymore.
+     * are not existent any more.
      */
     journal_decorator(size_type const count, value_type const & val)
     {
@@ -229,7 +232,9 @@ public:
      * are not existent anymore.
      */
     template <std::InputIterator iterator_type>
+    //!\cond
         requires std::is_same_v<value_type, std::remove_const_t<typename std::iterator_traits<iterator_type>::value_type>>
+    //!\endcond
     void assign(iterator_type begin, iterator_type end)
     {
         host_ptr = nullptr;
@@ -257,7 +262,7 @@ public:
     }
 
     /*!\brief Replace /p count times value /p val as a new range for the journal_decorator.
-     * \param count The number of replications of \val and after assignment the new length.
+     * \param count The number of replications of val and after assignment the new length.
      * \param val The value to be replicated as a new range.
      *
      * IMPORTANT: This will not replace the underlying host sequence but delete
@@ -282,8 +287,8 @@ public:
      */
     /*!\brief Returns a reference to the element at the specific location \p pos, with bounds checking.
      * \param pos The position of the element to return.
-     * \returns The reference to the element at the position \pos.
-     * \throws std::out_of_range If the the position \pos is not within the bounds.
+     * \returns The reference to the element at the position pos.
+     * \throws std::out_of_range If the the position pos is not within the bounds.
      */
     reference at(size_type pos)
     {
@@ -308,7 +313,7 @@ public:
 
     /*!\brief Returns a reference to the element at the specific location \p pos.
      * \param pos The position of the element to return.
-     * \returns The reference to the element at the position \pos.
+     * \returns The reference to the element at the position pos.
      */
     reference operator[](size_type pos)
     {
@@ -445,17 +450,119 @@ public:
         journal_tree = {{journal_node_type::source::HOST, length, 0, 0, 0}};
     }
 
-    /*!\brief Inserts a range into the journal_decorator at \p pos_it
-     * \tparam iterator_type Input range iterator, must satisfy the seqan3::std::InputIterator.
-     * \param pos_it The iterator pointing to the position where the range is to be inserted.
-     * \pram first The begin iterator of the range to be inserted.
-     * \pram last The end iterator of the range to be inserted.
-     * \returns An iterator pointing to the start of the inserted sequence or the
-     *          same position if `first == last`.
+    /*!\brief Inserts a value into the journal_decorator at \p pos_it.
+     * \param[in] pos_it The iterator pointing to the position after which the range is to be inserted.
+     * \param[in] value  The value to insert.
+     * \returns An iterator pointing to the start of the inserted value.
+     *
+     * \details
      *
      * Note that by design the underlying host range is not modified by inserting
      * into the journal_decorator. Only the difference will be stored in the
      * internal data structure.
+     *
+     * ```cpp
+     * std::string host{"AAAAAA"};
+     * char ins{'T'};
+     * journal_decorator<std::string> journal{host};
+     * journal.insert(journal.begin() + 2, ins);
+     *
+     * std::cout << journal << std::endl; // AATAAAA
+     * std::cout << host << std::endl;    // AAAAAA
+     * ```
+     *
+     * ### Exception
+     *
+     * The exception guarantee depends on the container type storing journal nodes
+     * which can be specified over the journal_decorator `traits_type`.
+     * When the container type ensures the strong exception guarantee for insert,
+     * push_back, swap, move assignment and iterating over it, like it is the
+     * case for default container `std::vector` then insert() also guarantees
+     * strong exception safety.
+     *
+     * ### Complexity
+     *
+     * Inserting into the journal_decorator at most linear over the size of the
+     * input range and linear over the current length of the journal node
+     * container.
+     *
+     * ### Thread safety
+     *
+     * This container provides no thread-safety beyond the promise given also by the STL that all
+     * calls to `const` member function are safe from multiple threads (as long as no thread calls
+     * a non-`const` member function at the same time).
+     *
+     */
+    iterator insert(iterator pos_it, value_type const & value)
+    {
+        insertion_buffer.push_back(value);
+        return insert_insertion_node(pos_it, 1);
+    }
+
+    /*!\brief Inserts multiple copies of a value into the journal_decorator at \p pos_it.
+     * \param[in] pos_it The iterator pointing to the position after which the range is to be inserted.
+     * \param[in] count  The number of times to insert the value.
+     * \param[in] value  The value to insert.
+     * \returns An iterator pointing to the start of the first inserted value.
+     *
+     * \details
+     *
+     * Note that by design the underlying host range is not modified by inserting
+     * into the journal_decorator. Only the difference will be stored in the
+     * internal data structure.
+     *
+     * ```cpp
+     * std::string host{"AAAAAA"};
+     * char ins{'T'};
+     * journal_decorator<std::string> journal{host};
+     * journal.insert(journal.begin() + 2, 2, ins);
+     *
+     * std::cout << journal << std::endl; // AATTAAAA
+     * std::cout << host << std::endl;    // AAAAAA
+     * ```
+     *
+     * ### Exception
+     *
+     * The exception guarantee depends on the container type storing journal nodes
+     * which can be specified over the journal_decorator `traits_type`.
+     * When the container type ensures the strong exception guarantee for insert,
+     * push_back, swap, move assignment and iterating over it, like it is the
+     * case for default container `std::vector` then insert() also guarantees
+     * strong exception safety.
+     *
+     * ### Complexity
+     *
+     * Inserting into the journal_decorator at most linear over the size of the
+     * input range and linear over the current length of the journal node
+     * container.
+     *
+     * ### Thread safety
+     *
+     * This container provides no thread-safety beyond the promise given also by the STL that all
+     * calls to `const` member function are safe from multiple threads (as long as no thread calls
+     * a non-`const` member function at the same time).
+     *
+     */
+    iterator insert(iterator pos_it, size_type count, value_type const & value)
+    {
+        insertion_buffer.insert(insertion_buffer.end(), count, value);
+        return insert_insertion_node(pos_it, count);
+    }
+
+    /*!\brief Inserts a range into the journal_decorator at \p pos_it.
+     * \tparam iterator_type Input range iterator, must satisfy the seqan3::std::InputIterator.
+     * \param[in] pos_it The iterator pointing to the position after which the range is to be inserted.
+     * \param[in] first  The begin iterator of the range to be inserted.
+     * \param[in] last   The end iterator of the range to be inserted.
+     * \returns An iterator pointing to the start of the inserted sequence or the
+     *          same position if `first == last`.
+     *
+     * \details
+     *
+     * Note that by design the underlying host range is not modified by inserting
+     * into the journal_decorator. Only the difference will be stored in the
+     * internal data structure.
+     *
      * ```cpp
      * std::string host{"AAAAAA"};
      * std::string ins{"TT"};
@@ -476,7 +583,7 @@ public:
      * strong exception safety.
      *
      * ### Complexity
-`    *
+     *
      * Inserting into the journal_decorator at most linear over the size of the
      * input range and linear over the current length of the journal node
      * container.
@@ -497,22 +604,53 @@ public:
         return insert_insertion_node(pos_it, static_cast<size_type>(std::distance(first, last)));
     }
 
+    /*!\brief Inserts a range given as an initializer list into the journal_decorator at \p pos_it.
+     * \param[in] pos_it The iterator pointing to the position after which the range is to be inserted.
+     * \param[in] ilist  The initializer list to be inserted.
+     * \returns An iterator pointing to the start of the inserted sequence or the
+     *          same position if \p ilist is empty.
+     *
+     * \details
+     *
+     * Note that by design the underlying host range is not modified by inserting
+     * into the journal_decorator. Only the difference will be stored in the
+     * internal data structure.
+     *
+     * ```cpp
+     * std::string host{"AAAAAA"};
+     * journal_decorator<std::string> journal{host};
+     * journal.insert(journal.begin() + 2, {"TT"});
+     *
+     * std::cout << journal << std::endl; // AATTAAAA
+     * std::cout << host << std::endl;    // AAAAAA
+     * ```
+     *
+     * ### Exception
+     *
+     * The exception guarantee depends on the container type storing journal nodes
+     * which can be specified over the journal_decorator `traits_type`.
+     * When the container type ensures the strong exception guarantee for insert,
+     * push_back, swap, move assignment and iterating over it, like it is the
+     * case for default container `std::vector` then insert() also guarantees
+     * strong exception safety.
+     *
+     * ### Complexity
+     *
+     * Inserting into the journal_decorator at most linear over the size of the
+     * input range and linear over the current length of the journal node
+     * container.
+     *
+     * ### Thread safety
+     *
+     * This container provides no thread-safety beyond the promise given also by the STL that all
+     * calls to `const` member function are safe from multiple threads (as long as no thread calls
+     * a non-`const` member function at the same time).
+     *
+     */
     iterator insert(iterator pos_it, std::initializer_list<value_type> ilist)
     {
         insertion_buffer.insert(insertion_buffer.end(), ilist.begin(), ilist.end());
         return insert_insertion_node(pos_it, ilist.size());
-    }
-
-    iterator insert(iterator pos_it, value_type const & value)
-    {
-        insertion_buffer.push_back(value);
-        return insert_insertion_node(pos_it, 1);
-    }
-
-    iterator insert(iterator pos_it, size_type count, value_type const & value)
-    {
-        insertion_buffer.insert(insertion_buffer.end(), count, value);
-        return insert_insertion_node(pos_it, count);
     }
     //!\}
 
@@ -537,6 +675,11 @@ protected:
     //!\brief Tracks the length for constant size access.
     size_type length{0};
 
+    /*!\brief Updates the journal nodes when inserting into the journal_decorator.
+     * \param[in] pos_it            The iterator pointing to the position of insertion.
+     * \param[in] insertion_length  The length of the insertion.
+     * \returns An iterator pointing to the start of the insertion.
+     */
     iterator insert_insertion_node(iterator pos_it, size_type insertion_length)
     {
         /* In general, we need to copy the range into the insertion_buffer
@@ -740,6 +883,7 @@ class journal_decorator_iterator : public
     detail::random_access_iterator_base<journal_decorator_type, journal_decorator_iterator>
 {
 private:
+    //!\brief The base type.
     using base = detail::random_access_iterator_base<journal_decorator_type, journal_decorator_iterator>;
 public:
     //!\brief Same as the value_type of the journal_decorator.

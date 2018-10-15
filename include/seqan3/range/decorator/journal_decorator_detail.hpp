@@ -60,15 +60,15 @@ struct journal_node
     //!\brief Specifies whether a seqan3::journal_node refers to the original host or an insertion in the buffer.
     enum struct source
     {
-        NONE,  //! Default bit for default construction.
-        HOST,  //! Refers to the underlying range (host) of the seqan3::journal_decorator owning the node.
-        BUFFER //! Refers to the insertion buffer of the seqan3::journal_decorator owning the node.
+        NONE,  //!< Default bit for default construction.
+        HOST,  //!< Refers to the underlying range (host) of the seqan3::journal_decorator owning the node.
+        BUFFER //!< Refers to the insertion buffer of the seqan3::journal_decorator owning the node.
     };
 
-    source src;                      //! Flag specifying where to find the segment sequence.
-    size_type length;                //! Length of the segment.
-    position_type virtual_position;  //! Position in the virtual "modified" range representation.
-    position_type physical_position; //! Position in the underlying range (host) or insertion buffer.
+    source src;                      //!< Flag specifying where to find the segment sequence.
+    size_type length;                //!< Length of the segment.
+    position_type virtual_position;  //!< Position in the virtual "modified" range representation.
+    position_type physical_position; //!< Position in the underlying range (host) or insertion buffer.
 
     /*!\brief Physical position in the host string.
      *
