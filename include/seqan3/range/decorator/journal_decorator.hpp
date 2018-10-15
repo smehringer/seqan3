@@ -86,8 +86,8 @@ concept journal_decorator_traits_concept = requires (t v)
 struct journal_decorator_default_traits
 {
     //!\brief The container type of the journal nodes. Default: std::vector.
-    template <typename journal_node_type>
-    using journal_container_type = std::vector<journal_node_type>;
+    template <typename node_t>
+    using journal_container_type = std::vector<node_t>;
 
     //!\brief The container type of the insertion buffer. Default: std::vector.
     template <typename value_type>
@@ -142,9 +142,11 @@ public:
      */
     explicit journal_decorator(urng_t const & urange) :
         host_ptr{&urange},
-        journal_tree{{{journal_node_type::source::HOST,
-                       static_cast<size_type>(urange.size()),
-                       0, 0, 0}}},
+        journal_tree{{{node_t::source::HOST,
+                       typename node_t::length{urange.size()},
+                       typename node_t::virtual_position{0},
+                       typename node_t::physical_position{0},
+                       typename node_t::physical_origin_position{0}}}},
         length{urange.size()}
     {}
 
@@ -240,9 +242,11 @@ public:
         host_ptr = nullptr;
         insertion_buffer.assign(begin, end);
         length = insertion_buffer.size();
-        journal_tree.assign({{journal_node_type::source::BUFFER,
-                              static_cast<size_type>(insertion_buffer.size()),
-                              0, 0, 0}});
+        journal_tree.assign({{node_t::source::BUFFER,
+                              typename node_t::length{insertion_buffer.size()},
+                              typename node_t::virtual_position{0},
+                              typename node_t::physical_position{0},
+                              typename node_t::physical_origin_position{0}}});
     }
 
     /*!\brief Assign a new range via an initializer list to the journal_decorator.
@@ -276,9 +280,11 @@ public:
         host_ptr = nullptr;
         insertion_buffer.assign(count, val);
         length = insertion_buffer.size();
-        journal_tree.assign({{journal_node_type::source::BUFFER,
-                              static_cast<size_type>(insertion_buffer.size()),
-                              0, 0, 0}});
+        journal_tree.assign({{node_t::source::BUFFER,
+                              typename node_t::length{insertion_buffer.size()},
+                              typename node_t::virtual_position{0},
+                              typename node_t::physical_position{0},
+                              typename node_t::physical_origin_position{0}}});
     }
     //!\}
 
@@ -447,7 +453,11 @@ public:
     {
         insertion_buffer.clear();
         length = (*host_ptr).size();
-        journal_tree = {{journal_node_type::source::HOST, length, 0, 0, 0}};
+        journal_tree = {{node_t::source::HOST,
+                         typename node_t::length{length},
+                         typename node_t::virtual_position{0},
+                         typename node_t::physical_position{0},
+                         typename node_t::physical_origin_position{0}}};
     }
 
     /*!\brief Exchanges the contents of the journal_decorator with those of other.
@@ -689,8 +699,8 @@ public:
     //!\}
 
 protected:
-    //!\brief The type of journal_node that store the modification information.
-    using journal_node_type = detail::journal_node<size_type, size_type>;
+    //!\brief The type of journal_node that stores the modification information.
+    using node_t = detail::journal_node<size_type, size_type>;
 
     /*!\brief The container type for storing journal_nodes.
      *
@@ -698,7 +708,7 @@ protected:
      * member/free function of the journal decorator and should be chosen
      * carefully based on the type of application.
      */
-    using journal_tree_type = typename traits_type::template journal_container_type<journal_node_type>;
+    using journal_tree_type = typename traits_type::template journal_container_type<node_t>;
 
     //!/brief A pointer to the underlying range that is to be decorated.
     urng_t const * host_ptr{nullptr};
@@ -725,23 +735,25 @@ protected:
          * (3) We want to insert in between node -> add node left of pos_it
          * (4) We want to insert inside a node   -> split node into 3
         */
-        using source_type = typename journal_node_type::source;
+        using source_type = typename node_t::source;
         using tree_iterator_type = typename journal_tree_type::iterator;
 
         if (insertion_length == 0)
             return pos_it; // nothing to insert
 
         // New node source - the source type is always the insertion buffer
-        source_type const new_node_source{journal_node_type::source::BUFFER};
+        source_type const new_node_source{node_t::source::BUFFER};
         // New node length - the length is computed once from the input range
         size_type const new_node_length{insertion_length};
 
         if (journal_tree.empty()) // case (1)
         {
-            // update insertion buffer
-            // insertion_buffer.insert(insertion_buffer.end(), first, last);
             // update journal nodes
-            journal_tree.push_back({new_node_source, new_node_length, 0, 0, 0});
+            journal_tree.push_back({new_node_source,
+                                    typename node_t::length{new_node_length},
+                                    typename node_t::virtual_position{0},
+                                    typename node_t::physical_position{0},
+                                    typename node_t::physical_origin_position{0}});
             // update length
             length += new_node_length;
 
@@ -749,7 +761,7 @@ protected:
         }
 
         // New node virtual position - the vpos is the position pointed to by the iterator pos_it
-        size_type const new_node_virtual_position{pos_it.current_node_it->virtual_position + pos_it.offset};
+        size_type const new_node_virtual_position{pos_it.current_node_it->virtual_position.get() + pos_it.offset};
         // New node physical position - the ppos is at end of the insertion buffer where the new range is inserted
         size_type const new_node_physical_position{insertion_buffer.size() - insertion_length};
         // New node physical origin position - will be set differently in each case
@@ -762,31 +774,32 @@ protected:
         size_type shift_right_of = current_node_pos;
 
         assert(new_node_virtual_position <= length); // pos_it should be in range [0, length]
-        assert(current_node_it->virtual_position <= new_node_virtual_position);
-        assert(current_node_it->virtual_position + current_node_it->length >= new_node_virtual_position);
+        assert(current_node_it->virtual_position.get() <= new_node_virtual_position);
+        assert(current_node_it->virtual_position.get() + current_node_it->length.get() >= new_node_virtual_position);
 
         if (new_node_virtual_position == length) // case (2)
         {
             // update journal nodes
             journal_tree.push_back({new_node_source,
-                                    new_node_length,
-                                    new_node_virtual_position,
-                                    new_node_physical_position,
+                                    typename node_t::length{new_node_length},
+                                    typename node_t::virtual_position{new_node_virtual_position},
+                                    typename node_t::physical_position{new_node_physical_position},
                                     journal_tree.end()->physical_origin_position});
             ++current_node_pos;
             ++shift_right_of;
         }
-        else if (current_node_it->virtual_position == new_node_virtual_position) // case (3)
+        else if (current_node_it->virtual_position.get() == new_node_virtual_position) // case (3)
         {
             if (current_node_it != journal_tree.begin())
-                new_node_physical_origin_position = (current_node_it - 1)->physical_origin_position;
+                new_node_physical_origin_position = (current_node_it - 1)->physical_origin_position.get();
 
             // update journal nodes
-            journal_tree.insert(current_node_it, {new_node_source,
-                                                  new_node_length,
-                                                  new_node_virtual_position,
-                                                  new_node_physical_position,
-                                                  new_node_physical_origin_position});
+            journal_tree.insert(current_node_it,
+                                {new_node_source,
+                                 typename node_t::length{new_node_length},
+                                 typename node_t::virtual_position{new_node_virtual_position},
+                                 typename node_t::physical_position{new_node_physical_position},
+                                 typename node_t::physical_origin_position{new_node_physical_origin_position}});
             ++shift_right_of;
         }
         else // case (4)
@@ -794,32 +807,32 @@ protected:
             // split current node into two and place the new insertion node in
             // the middle ---> lhs_node ~ new_node ~ rhs_node
 
-            std::array<journal_node_type, 3> buffer{}; // The buffer to store the 3 nodes
+            std::array<node_t, 3> buffer{}; // The buffer to store the 3 nodes
 
             // Compute the size of the left and right flank of the two nodes
             // flanking the new insertion node.
-            size_type const left_flank_len{new_node_virtual_position - current_node_it->virtual_position};
-            size_type const right_flank_len{current_node_it->length - left_flank_len};
+            size_type const left_flank_len{new_node_virtual_position - current_node_it->virtual_position.get()};
+            size_type const right_flank_len{current_node_it->length.get() - left_flank_len};
 
             buffer[0] = {current_node_it->src,
-                         left_flank_len,
+                         typename node_t::length{left_flank_len},
                          current_node_it->virtual_position,
                          current_node_it->physical_position,
                          current_node_it->physical_origin_position};
 
             buffer[1] = {new_node_source,
-                         new_node_length,
-                         new_node_virtual_position,
-                         new_node_physical_position,
+                         typename node_t::length{new_node_length},
+                         typename node_t::virtual_position{new_node_virtual_position},
+                         typename node_t::physical_position{new_node_physical_position},
                          current_node_it->physical_origin_position};
 
             buffer[2] = {current_node_it->src,
-                         right_flank_len,
-                         new_node_virtual_position + new_node_length,
-                         current_node_it->physical_position + left_flank_len,
-                         ((current_node_it->src == journal_node_type::source::BUFFER) ?
-                            current_node_it->physical_origin_position :
-                            current_node_it->physical_origin_position + left_flank_len)};
+                         typename node_t::length{right_flank_len},
+                         typename node_t::virtual_position{new_node_virtual_position + new_node_length},
+                         typename node_t::physical_position{current_node_it->physical_position.get() + left_flank_len},
+                         typename node_t::physical_origin_position{((current_node_it->src == node_t::source::BUFFER) ?
+                                                                   current_node_it->physical_origin_position.get() :
+                                                                   current_node_it->physical_origin_position.get() + left_flank_len)}};
 
             ++current_node_pos;
             std::swap(*current_node_it, buffer[2]);
@@ -831,18 +844,17 @@ protected:
         assert(shift_right_of <= journal_tree.size());
         for (auto it = journal_tree.begin() + shift_right_of; it != journal_tree.end(); ++it)
         {
-            it->virtual_position += new_node_length;
-            if (it != journal_tree.begin() && it->src == journal_node_type::source::BUFFER)
-                it->physical_origin_position = (it - 1)->physical_origin_position;
+            it->virtual_position.get() += new_node_length;
+            if (it != journal_tree.begin() && it->src == node_t::source::BUFFER)
+                it->physical_origin_position.get() = (it - 1)->physical_origin_position.get();
         }
 
-        // update the insertion buffer
-        // insertion_buffer.insert(insertion_buffer.end(), first, last);
         // update the length
         length += new_node_length;
 
         return (iterator{*this}).set((journal_tree.begin() + current_node_pos), 0);
     }
+
 };
 
 /*!\name Comparison operators.
@@ -1008,7 +1020,7 @@ public:
     journal_decorator_iterator & operator++() noexcept
     {
         ++offset;
-        if (offset == (*current_node_it).length) // I am at the end of the segment
+        if (offset == (*current_node_it).length.get()) // I am at the end of the segment
         {
             if (current_node_it != (decorator_ptr->journal_tree.end() - 1))
             {
@@ -1033,7 +1045,7 @@ public:
         if (offset == 0) // I am at the end of the segment
         {
             --current_node_it;
-            offset = (*current_node_it).length; // points to the end but will be decremented at the end of this if clause
+            offset = (*current_node_it).length.get(); // points to the end but will be decremented at the end of this if clause
             assert(offset != 0);
         }
         --offset;
@@ -1053,14 +1065,14 @@ public:
     {
         offset += skip;
         // TODO can/shall this be done by binary seach in logarithmic time?
-        while (offset > (*current_node_it).length) // I am at the end of the segment
+        while (offset > (*current_node_it).length.get()) // I am at the end of the segment
         {
-            offset -= (*current_node_it).length;
+            offset -= (*current_node_it).length.get();
             ++current_node_it;
         }
 
         // last move must be handled separately in case the iterator will point to the very end
-        if (offset == (*current_node_it).length)
+        if (offset == (*current_node_it).length.get())
         {
             if (current_node_it != (decorator_ptr->journal_tree.end() - 1))
             {
@@ -1087,7 +1099,7 @@ public:
         {
             skip_cpy -= offset;
             --current_node_it;
-            offset = (*current_node_it).length; // points to the end but will be decremented at the end of this if clause
+            offset = (*current_node_it).length.get(); // points to the end but will be decremented at the end of this if clause
         }
         offset -= skip_cpy;
         return *this;
@@ -1104,7 +1116,7 @@ public:
     difference_type operator-(journal_decorator_iterator const lhs) const noexcept
     {
         return static_cast<difference_type>(
-            ((*current_node_it).virtual_position + offset) - ((*lhs.current_node_it).virtual_position + lhs.offset));
+            ((*current_node_it).virtual_position.get() + offset) - ((*lhs.current_node_it).virtual_position.get() + lhs.offset));
     }
     //!\}
 
@@ -1114,13 +1126,13 @@ public:
     //!\brief Dereference operator returns element currently pointed at.
     reference operator*() const
     {
-        size_type src_pos = (*current_node_it).physical_position + offset;
+        size_type src_pos = (*current_node_it).physical_position.get() + offset;
 
         switch ((*current_node_it).src)
         {
-            case journal_node_type::source::HOST:
+            case node_t::source::HOST:
                 return (*((*decorator_ptr).host_ptr))[src_pos];
-            case journal_node_type::source::BUFFER:
+            case node_t::source::BUFFER:
                 return (*decorator_ptr).insertion_buffer[src_pos];
             default:
                 assert(false && "Invalid segment source!");
@@ -1144,8 +1156,8 @@ private:
     template <typename urng_t, typename traits_type>
     friend class journal_decorator;
 
-    //!\brief Same as the journal_node_type of the journal_decorator
-    using journal_node_type = typename journal_decorator_type::journal_node_type;
+    //!\brief Same as the node_t of the journal_decorator
+    using node_t = typename journal_decorator_type::node_t;
     //!\brief Same as the journal_tree_type of the journal_decorator
     using journal_tree_type = typename journal_decorator_type::journal_tree_type;
     //!\brief The (const) iterator type of the journal container type
@@ -1166,7 +1178,7 @@ private:
     journal_decorator_iterator set_to_end()
     {
         journal_tree_iterator_type tree_end{decorator_ptr->journal_tree.end() - 1};
-        return set(tree_end, tree_end->length);
+        return set(tree_end, tree_end->length.get());
     }
 
     //!\brief A pointer to the journal_decorator to access or update the data members.

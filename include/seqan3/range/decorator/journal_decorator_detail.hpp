@@ -39,6 +39,9 @@
 
 #pragma once
 
+#include <seqan3/std/concepts>
+#include <seqan3/core/detail/strong_type.hpp>
+
 namespace seqan3::detail
 {
 
@@ -57,6 +60,30 @@ namespace seqan3::detail
 template <typename position_type, typename size_type>
 struct journal_node
 {
+    //!\brief A strong type that represents the length the segment the node describes.
+    struct length : detail::strong_type<size_type, length, detail::strong_type_skill::add>
+    {
+         using detail::strong_type<size_type, length, detail::strong_type_skill::add>::strong_type;
+    };
+
+    //!\brief A strong type that represents the virtual position the node describes.
+    struct virtual_position : detail::strong_type<position_type, virtual_position, detail::strong_type_skill::add>
+    {
+         using detail::strong_type<size_type, virtual_position, detail::strong_type_skill::add>::strong_type;
+    };
+
+    //!\brief A strong type that represents the physical position the node describes.
+    struct physical_position : detail::strong_type<position_type, physical_position, detail::strong_type_skill::add>
+    {
+         using detail::strong_type<size_type, physical_position, detail::strong_type_skill::add>::strong_type;
+    };
+
+    //!\brief A strong type that represents the physical origin position the node describes.
+    struct physical_origin_position : detail::strong_type<position_type, physical_origin_position, detail::strong_type_skill::add>
+    {
+         using detail::strong_type<size_type, physical_origin_position, detail::strong_type_skill::add>::strong_type;
+    };
+
     //!\brief Specifies whether a seqan3::journal_node refers to the original host or an insertion in the buffer.
     enum struct source
     {
@@ -66,9 +93,9 @@ struct journal_node
     };
 
     source src;                      //!< Flag specifying where to find the segment sequence.
-    size_type length;                //!< Length of the segment.
-    position_type virtual_position;  //!< Position in the virtual "modified" range representation.
-    position_type physical_position; //!< Position in the underlying range (host) or insertion buffer.
+    length length;   //!< Length of the segment.
+    virtual_position virtual_position;  //!< Position in the virtual "modified" range representation.
+    physical_position physical_position; //!< Position in the underlying range (host) or insertion buffer.
 
     /*!\brief Physical position in the host string.
      *
@@ -78,7 +105,7 @@ struct journal_node
      * This variable was introduced to provide efficient mapping between virtual
      * and physical position.
      */
-    position_type physical_origin_position;
+    physical_origin_position physical_origin_position;
 
     /*!\brief Compares if all member variables are the same.
      * \param rhs The journal node to compare to.
@@ -86,10 +113,10 @@ struct journal_node
     bool operator==(journal_node const & rhs) const
     {
         return (src == rhs.src &&
-                length == rhs.length &&
-                virtual_position == rhs.virtual_position &&
-                physical_position == rhs.physical_position &&
-                physical_origin_position == rhs.physical_origin_position);
+                length.get() == rhs.length.get() &&
+                virtual_position.get() == rhs.virtual_position.get() &&
+                physical_position.get() == rhs.physical_position.get() &&
+                physical_origin_position.get() == rhs.physical_origin_position.get());
     }
 
     /*!\brief Compares if any of the member variables is not equal.

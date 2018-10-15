@@ -44,28 +44,44 @@ using namespace std::literals;
 
 TEST(journal_node, construction)
 {
+    using node_type = detail::journal_node<uint32_t, uint32_t>;
+
     // default construct journal node
-    detail::journal_node<int, int> node{};
-    EXPECT_EQ(node.src, (detail::journal_node<int, int>::source::NONE));
-    EXPECT_EQ(node.length, 0);
-    EXPECT_EQ(node.virtual_position, 0);
-    EXPECT_EQ(node.physical_position, 0);
-    EXPECT_EQ(node.physical_origin_position, 0);
+    node_type node{};
+    EXPECT_EQ(node.src, (node_type::source::NONE));
+    EXPECT_EQ(node.length.get(), 0);
+    EXPECT_EQ(node.virtual_position.get(), 0);
+    EXPECT_EQ(node.physical_position.get(), 0);
+    EXPECT_EQ(node.physical_origin_position.get(), 0);
 
     // aggregate initialization
-    detail::journal_node<int, int> node_agg{detail::journal_node<int, int>::source::HOST, 1, 2, 3, 4};
-    EXPECT_EQ(node_agg.src, (detail::journal_node<int, int>::source::HOST));
-    EXPECT_EQ(node_agg.length, 1);
-    EXPECT_EQ(node_agg.virtual_position, 2);
-    EXPECT_EQ(node_agg.physical_position, 3);
-    EXPECT_EQ(node_agg.physical_origin_position, 4);
+    node_type node_agg{node_type::source::HOST,
+                       typename node_type::length{1},
+                       typename node_type::virtual_position{2},
+                       typename node_type::physical_position{3},
+                       typename node_type::physical_origin_position{4}};
+    EXPECT_EQ(node_agg.src, (node_type::source::HOST));
+    EXPECT_EQ(node_agg.length.get(), 1);
+    EXPECT_EQ(node_agg.virtual_position.get(), 2);
+    EXPECT_EQ(node_agg.physical_position.get(), 3);
+    EXPECT_EQ(node_agg.physical_origin_position.get(), 4);
 }
 
 TEST(journal_node, comparison_operator)
 {
-    detail::journal_node<int, int> node_1{};
-    detail::journal_node<int, int> node_2{detail::journal_node<int, int>::source::HOST, 1, 2, 3, 4};
-    detail::journal_node<int, int> node_3{detail::journal_node<int, int>::source::HOST, 1, 2, 3, 4};
+    using node_type = detail::journal_node<uint32_t, uint32_t>;
+
+    node_type node_1{};
+    node_type node_2{node_type::source::HOST,
+                     typename node_type::length{1},
+                     typename node_type::virtual_position{2},
+                     typename node_type::physical_position{3},
+                     typename node_type::physical_origin_position{4}};
+    node_type node_3{node_type::source::HOST,
+                     typename node_type::length{1},
+                     typename node_type::virtual_position{2},
+                     typename node_type::physical_position{3},
+                     typename node_type::physical_origin_position{4}};
 
     EXPECT_EQ(node_2, node_3);
     EXPECT_NE(node_1, node_2);
