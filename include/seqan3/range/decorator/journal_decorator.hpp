@@ -855,6 +855,17 @@ protected:
         return (iterator{*this}).set((journal_tree.begin() + current_node_pos), 0);
     }
 
+    iterator erase_update(iterator first, iterator last)
+    {
+        /* The following cases need to be considered for inserting a node:
+         * (1) The journal_tree is empty -> we cannot delete from an empty container?
+         * (2) The deletion is inside an insertion node
+         * (3) The deletion is inside a reference node
+         * (4) The deletion spans multiple nodes
+         */
+
+    }
+
 };
 
 /*!\name Comparison operators.
