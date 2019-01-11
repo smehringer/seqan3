@@ -35,9 +35,10 @@ struct alignment_file_header
         std::string version;           //!< The program/tool version.
     };
 
-    std::string format_version;     //!< The file format version. Note: this is overwritten by our formats on output.
-    std::string sorting{"unknown"}; //!< The sorting state of the file. SAM: [unknown, unsorted, queryname, coordinate].
-    std::string grouping{"none"};   //!< The grouping state of the file. SAM: [none, query, reference].
+    std::string format_version; //!< The file format version. Note: this is overwritten by our formats on output.
+    std::string sorting;        //!< The sorting of the file. SAM: [unknown, unsorted, queryname, coordinate].
+    std::string subsorting;     //!< The sub-sorting of the file. SAM: [unknown, unsorted, queryname, coordinate](:[A-Za-z0-9_-]+)+.
+    std::string grouping;       //!< The grouping of the file. SAM: [none, query, reference].
 
     std::vector<program_info_t> program_infos; //!< The list of program information.
 

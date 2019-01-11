@@ -14,28 +14,31 @@
 
 #include <iterator>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include <range/v3/algorithm/copy.hpp>
-#include <range/v3/view/remove_if.hpp>
 
+#include <seqan3/core/concept/core_language.hpp>
 #include <seqan3/core/concept/tuple.hpp>
 #include <seqan3/core/metafunction/range.hpp>
 #include <seqan3/io/alignment_file/detail.hpp>
 #include <seqan3/io/alignment_file/header.hpp>
-// #include <seqan3/io/alignment/input_options.hpp>
+#include <seqan3/io/alignment_file/input_options.hpp>
 #include <seqan3/io/alignment_file/output_options.hpp>
 #include <seqan3/io/alignment_file/sam_tag_dictionary.hpp>
 #include <seqan3/io/detail/ignore_output_iterator.hpp>
 #include <seqan3/io/detail/misc.hpp>
 #include <seqan3/io/stream/parse_condition.hpp>
+#include <seqan3/range/detail/misc.hpp>
 #include <seqan3/range/view/char_to.hpp>
-#include <seqan3/range/view/get.hpp>
+#include <seqan3/range/view/take_exactly.hpp>
+#include <seqan3/range/view/take_line.hpp>
 #include <seqan3/range/view/take_until.hpp>
 #include <seqan3/range/view/to_char.hpp>
-#include <seqan3/std/ranges>
+#include <seqan3/std/charconv>
 #include <seqan3/std/concepts>
+#include <seqan3/std/ranges>
+#include <seqan3/std/view/subrange.hpp>
 
 namespace seqan3
 {
@@ -111,8 +114,8 @@ namespace seqan3
  *
  * ### Header implementation
  *
- * The SAM header is printed once in the beginning, before the first record is
- * written.
+ * The SAM header (if present) is read/written once in the beginning, before the
+ * first record is read/written.
  */
 class alignment_file_format_sam
 {
@@ -134,6 +137,269 @@ public:
     {
         { "sam" },
     };
+
+    //!\copydoc AlignmentFileInputFormat::read
+    template <typename stream_type,     // constraints checked by file
+              typename seq_legal_alph_type,
+              typename ref_id_to_pos_map_type,
+              typename ref_seqs_type,
+              typename header_type,
+              typename seq_type,
+              typename id_type,
+              typename offset_type,
+              typename ref_seq_type,
+              typename ref_id_type,
+              typename ref_offset_type,
+              typename align_type,
+              typename flag_type,
+              typename mapq_type,
+              typename qual_type,
+              typename mate_type,
+              typename tag_dict_type,
+              typename e_value_type,
+              typename bit_score_type>
+    void read(stream_type                                             & stream,
+              alignment_file_input_options<seq_legal_alph_type> const & SEQAN3_DOXYGEN_ONLY(options),
+              ref_id_to_pos_map_type                                  & ref_id_to_pos_map,
+              ref_seqs_type                                           & ref_seqs,
+              header_type                                             & header_ptr,
+              seq_type                                                & seq,
+              qual_type                                               & qual,
+              id_type                                                 & id,
+              offset_type                                             & offset,
+              ref_seq_type                                            & SEQAN3_DOXYGEN_ONLY(ref_seq),
+              ref_id_type                                             & ref_id,
+              ref_offset_type                                         & ref_offset,
+              align_type                                              & align,
+              flag_type                                               & flag,
+              mapq_type                                               & mapq,
+              mate_type                                               & mate,
+              tag_dict_type                                           & tag_dict,
+              e_value_type                                            & SEQAN3_DOXYGEN_ONLY(e_value),
+              bit_score_type                                          & SEQAN3_DOXYGEN_ONLY(bit_score))
+    {
+        using stream_buf_t = std::istreambuf_iterator<typename stream_type::char_type>;
+        auto stream_view = view::subrange<decltype(stream_buf_t{stream}), decltype(stream_buf_t{})>
+                              {stream_buf_t{stream}, stream_buf_t{}};
+
+        auto next = view::take_until_or_throw(is_char<'\t'>);
+
+        // these variables need to be stored to compute the ALIGNMENT
+        std::conditional_t<!detail::decays_to_ignore_v<ref_offset_type>, ref_offset_type, size_t> ref_offset_tmp{};
+        [[maybe_unused]] std::string ref_id_tmp{}; // in case reference information is given
+        [[maybe_unused]] std::conditional_t<!detail::decays_to_ignore_v<offset_type>, offset_type, size_t> offset_tmp{};
+        [[maybe_unused]] size_t soft_clipping_end{};
+        [[maybe_unused]] std::vector<std::pair<char, size_t>> cigar{};
+        [[maybe_unused]] size_t ref_length{0}, seq_length{0}; // length of aligned part for ref and query
+
+        // Header
+        // -------------------------------------------------------------------------------------------------------------
+        if constexpr (!detail::decays_to_ignore_v<header_type>)
+        {
+            if (!header_was_read && (header_ptr != nullptr) && is_char<'@'>(*begin(stream_view)))
+            {
+                read_header(stream_view, header_ptr);
+                header_was_read = true;
+            }
+            else
+            {
+                while (is_char<'@'>(*begin(stream_view)))
+                {
+                    detail::consume(stream_view | view::take_line);
+                    ++begin(stream_view); // skip newline
+                }
+            }
+        }
+        else
+        {
+            while (is_char<'@'>(*begin(stream_view)))
+            {
+                detail::consume(stream_view | view::take_line);
+                ++begin(stream_view); // skip newline
+            }
+        }
+
+        // Fields 1-5: ID FLAG REF_ID REF_OFFSET MAPQ
+        // -------------------------------------------------------------------------------------------------------------
+        read_field(stream_view | next, id);
+        ++begin(stream_view); // skip tab
+
+        read_field(stream_view | next, flag);
+        ++begin(stream_view);
+
+        if constexpr (detail::decays_to_ignore_v<ref_id_type> &&
+                      !detail::decays_to_ignore_v<align_type> && !detail::decays_to_ignore_v<ref_id_to_pos_map_type>)
+            read_field(stream_view | next, ref_id_tmp);
+        else
+            read_field(stream_view | next, ref_id);
+        ++begin(stream_view);
+
+        read_field(stream_view | next, ref_offset_tmp);
+        ++begin(stream_view);
+        assert(ref_offset_tmp > 0);
+        --ref_offset_tmp;            // SAM format is 1-based but SeqAn operates 0-based.
+        ref_offset = ref_offset_tmp;
+
+        read_field(stream_view | next, mapq);
+        ++begin(stream_view);
+
+        // Field 6: CIGAR
+        // -------------------------------------------------------------------------------------------------------------
+        if constexpr (!detail::decays_to_ignore_v<align_type>)
+        {
+            cigar = parse_cigar(offset_tmp, soft_clipping_end, stream_view | next);
+
+            // Compute length of aligned reference and query sequence in one go.
+            // The length of query sequence is needed when parsing the sequence (Field 10)
+            for (auto [cigar_op, cigar_count] : cigar)
+            {
+                if (is_char<'M'>(cigar_op))
+                {
+                    ref_length += cigar_count;
+                    seq_length += cigar_count;
+                }
+                else if (is_char<'D'>(cigar_op))
+                {
+                    ref_length += cigar_count;
+                }
+                else if (is_char<'I'>(cigar_op))
+                {
+                    seq_length += cigar_count;
+                }
+            }
+
+            offset = offset_tmp;
+        }
+        else
+        {
+            detail::consume(stream_view | next);
+        }
+        ++begin(stream_view);
+
+        // Field 7-9: (RNEXT PNEXT TLEN)=MATE
+        // -------------------------------------------------------------------------------------------------------------
+        if constexpr (!detail::decays_to_ignore_v<mate_type>)
+        {
+            read_field(stream_view | next, get<0>(mate)); // RNEXT
+            ++begin(stream_view);
+
+            read_field(stream_view | next, get<1>(mate)); // PNEXT
+            ++begin(stream_view);
+
+            read_field(stream_view | next, get<2>(mate)); // TLEN
+            ++begin(stream_view);
+        }
+        else
+        {
+            for (size_t i = 0; i < 3; ++i)
+            {
+                detail::consume(stream_view | next);
+                ++begin(stream_view);
+            }
+        }
+
+        // Field 10: Sequence
+        // -------------------------------------------------------------------------------------------------------------
+        auto constexpr is_legal_alph = is_in_alphabet<seq_legal_alph_type>;
+        auto seq_stream = stream_view | next
+                                      | view::transform([is_legal_alph] (char const c) // enforce legal alphabet
+                                        {
+                                            if (!is_legal_alph(c))
+                                                throw parse_error{std::string{"Encountered an unexpected letter: "} +
+                                                                  is_legal_alph.msg.string() +
+                                                                  " evaluated to false on " +
+                                                                  detail::make_printable(c)};
+                                            return c;
+                                        });
+
+        if constexpr (!detail::decays_to_ignore_v<align_type> && detail::decays_to_ignore_v<seq_type>)
+        {
+            static_assert(sequence_container_concept<std::remove_reference_t<decltype(get<1>(align))>>,
+                          "If you want to read ALIGNMENT but not SEQ, the alignment"
+                          " object must store a sequence container at the second position.");
+
+            detail::consume(seq_stream | view::take_exactly_or_throw(offset_tmp));        // skip soft clipping at begin
+
+            for (auto chr : seq_stream | view::take_exactly_or_throw(seq_length))
+                get<1>(align).push_back(value_type_t<decltype(get<1>(align))>{}.assign_char(chr));
+            // read_field(seq_stream | view::take_exactly_or_throw(seq_length), get<1>(align)); why does this not work??
+
+            detail::consume(seq_stream | view::take_exactly_or_throw(soft_clipping_end)); // skip soft clipping at end
+            assert(seq_stream.begin() == seq_stream.end());
+        }
+        else
+        {
+            read_field(seq_stream, seq);
+
+            if constexpr (!detail::decays_to_ignore_v<align_type>)
+            {
+                // TODO instead of copying here, you can maybe gap decorate a subrange view
+                for (auto it = seq.begin() + offset_tmp; it != seq.end() - soft_clipping_end; ++it)
+                    get<1>(align).push_back(value_type_t<decltype(get<1>(align))>{*it});
+            }
+        }
+        ++begin(stream_view);
+
+        // Field 11:  Quality
+        // -------------------------------------------------------------------------------------------------------------
+        read_field(stream_view | view::take_until_or_throw(is_char<'\t'> || is_char<'\n'>), qual);
+
+        // All remaining optional fields if any: SAM tags dictionary
+        // -------------------------------------------------------------------------------------------------------------
+        while (is_char<'\t'>(*begin(stream_view))) // read all tags if present
+        {
+            ++begin(stream_view);
+            read_field(stream_view | view::take_until_or_throw(is_char<'\t'> || is_char<'\n'>), tag_dict);
+        }
+        ++begin(stream_view);                      // skip newline
+
+        // DONE READING - wrap up
+        // -------------------------------------------------------------------------------------------------------------
+        // make sure "buffer at end" implies "stream at end"
+        if ((stream_buf_t{stream} == stream_buf_t{}) && (!stream.eof()))
+            stream.get(); // triggers error in stream and sets eof
+
+        // Alignment object construction
+        // Note that the query sequence in get<1>(align) has already been filled while reading Field 10.
+        if constexpr (!detail::decays_to_ignore_v<align_type>)
+        {
+            if constexpr (!detail::decays_to_ignore_v<ref_id_to_pos_map_type>)
+            {
+                static_assert(!detail::decays_to_ignore_v<ref_seqs_type>,
+                              "If you pass the id_to_ref_map you must also pass ref_seqs.");
+
+                size_t pos; // get index for ref_seqs
+                try
+                {
+                    if constexpr (detail::decays_to_ignore_v<ref_id_type>)
+                        pos = ref_id_to_pos_map.at(ref_id_tmp);
+                    else
+                        pos = ref_id_to_pos_map.at(ref_id);
+                }
+                catch (std::out_of_range & e)
+                {
+                    throw parse_error(std::string("[SAM PARSE ERROR] An id in the SAM record cannot be found in the "
+                                                  "given list of reference ids."));
+                }
+
+                if (ref_offset_tmp + ref_length > ref_seqs[pos].size())
+                    throw parse_error("[SAM PARSE ERROR] The alignment length exceeds the reference length.");
+
+                // copy over aligned reference sequence part
+                for (auto it = ref_seqs[pos].begin() + ref_offset_tmp;
+                     it != ref_seqs[pos].begin() + ref_offset_tmp + ref_length; ++it)
+                    get<0>(align).push_back(value_type_t<decltype(get<0>(align))>{*it});
+            }
+            else
+            {
+                // std::cerr << "A dummy should be created now" << std::endl;
+                // create a dummy sequence of length ref_length and decorate it with a gap_decorator
+            }
+
+            // insert gaps according to the cigar information
+            detail::alignment_from_cigar(align, cigar);
+        }
+    }
 
     //!\copydoc AlignmentFileOutputFormat::write
     template <typename stream_type,
@@ -344,8 +610,372 @@ protected:
     //!\brief The format version string.
     static constexpr char format_version[4] = "1.6";
 
+    char buffer[100] = "";
+
     //!\brief A variable that tracks whether the header_ptr as been written or not.
     bool written_header{false};
+
+    //!\brief A variable that tracks whether the header_ptr as been read or not.
+    bool header_was_read{false};
+
+    /*!\brief Decays to detail::consume for std::ignore.
+     * \tparam stream_view_type  The type of the stream as a view.
+     *
+     * \param[in, out] stream_view  The stream view to consume.
+     * \param[in, out] target       A std::ignore placeholder.
+     */
+    template <typename stream_view_type, typename target_type>
+        requires detail::decays_to_ignore_v<target_type>
+    void read_field(stream_view_type && stream_view, target_type /*target*/)
+    {
+        detail::consume(stream_view);
+    }
+
+    /*!\brief Reads a range by copying from stream_view to target, converting values with seqan3::view::char_to.
+     * \tparam stream_view_type  The type of the stream as a view.
+     * \tparam target_range_type The type of range to parse from input; Must model std::ranges::ForwardRange.
+     *
+     * \param[in, out] stream_view  The stream view to iterate over.
+     * \param[in, out] target       The range to store the parsed sequence.
+     */
+    template <typename stream_view_type, std::ranges::ForwardRange target_range_type>
+        requires requires (std::string s) { { view::char_to<value_type_t<target_range_type>>(s) }; }
+    void read_field(stream_view_type && stream_view, target_range_type & target)
+    {
+        ranges::copy(stream_view | view::char_to<value_type_t<target_range_type>>,
+                     ranges::back_inserter(target));
+    }
+
+    /*!\brief Reads arithmetic fields using std::from_chars.
+     * \tparam stream_view_type The type of the stream as a view.
+     * \tparam target_type      The type of value to parse from input; Must model seqan3::arithmetic_concept.
+     *
+     * \param[in, out] stream_view  The stream view to iterate over.
+     * \param[in, out] target       The arithmetic value object to store the parsed value.
+     *
+     * \throws seqan3::parse_error if the character sequence in stream_view cannot be successfully converted to a value
+     *         of type target_type.
+     */
+    template <typename stream_view_type, seqan3::arithmetic_concept target_type>
+    void read_field(stream_view_type && stream_view, target_type & target)
+    {
+        // unfortunately std::from_chars only accepts char const * so we need a buffer.
+        size_t idx{0};
+        for (auto chr : stream_view)
+        {
+            buffer[idx] = chr;
+            idx++;
+        }
+
+        std::from_chars_result res = std::from_chars(&buffer[0], &buffer[0] + idx, target);
+
+        if (res.ec == std::errc::invalid_argument)
+            throw parse_error(std::string("[SAM file in] The string '") + std::string(buffer) +
+                                          "' could not be casted into an arithmetic value.");
+
+        if (res.ec == std::errc::result_out_of_range)
+            throw parse_error(std::string("[SAM file in] Casting '") + std::string(buffer) +
+                                          "' into an arithmetic value would cause an overflow.");
+    }
+
+    /*!\brief Reads a list of values separated by comma as is the case for SAM tag arrays.
+     * \tparam variant_type     A specialization of std::variant that is stored in the seqan3::sam_tag_dictionary.
+     * \tparam stream_view_type The type of the stream as a view.
+     * \tparam value_type       The type of values to be stored in the tag array.
+     *
+     * \param[in, out] variant      A std::variant object to store the tag arrays in.
+     * \param[in, out] stream_view  The stream view to iterate over.
+     * \param[in]      value        A temporary value that determines the underlying type of the tag array.
+     *
+     * \details
+     *
+     * Reading the tags is done according to the official
+     * [SAM format specifications](https://samtools.github.io/hts-specs/SAMv1.pdf).
+     *
+     * The function throws a seqan3::parse_error if any unknown tag type was encountered. It will also fail if the
+     * format is not in a correct state (e.g. required fields are not giving), but throwing might occur downstream of
+     * the actual error.
+     */
+    template <typename variant_type, typename stream_view_type, typename value_type>
+    void read_sam_dict_vector(variant_type & variant, stream_view_type && stream_view, value_type value)
+    {
+        std::vector<value_type> tmp_vector;
+        while (begin(stream_view) != ranges::end(stream_view)) // not fully consumed yet
+        {
+            read_field(stream_view | view::take_until(is_char<','>), value);
+            tmp_vector.push_back(value);
+
+            if (is_char<','>(*begin(stream_view)))
+                ++begin(stream_view); // skip ','
+        }
+        variant = tmp_vector;
+    }
+
+    /*!\brief Reads the optional tag fields into the seqan3::sam_tag_dictionry.
+     * \tparam stream_view_type   The type of the stream as a view.
+     *
+     * \param[in, out] stream_view  The stream view to iterate over.
+     * \param[in, out] target       The seqan3::sam_tag_dictionary to store the tag information.
+     *
+     * \throws seqan3::parse_error if any unexpected character or format is encountered.
+     *
+     * \details
+     *
+     * Reading the tags is done according to the official
+     * [SAM format specifications](https://samtools.github.io/hts-specs/SAMv1.pdf).
+     *
+     * The function throws a seqan3::parse_error if any unknown tag type was encountered. It will also fail if the
+     * format is not in a correct state (e.g. required fields are not giving), but throwing might occur downstream of
+     * the actual error.
+     */
+    template <typename stream_view_type>
+    void read_field(stream_view_type && stream_view, sam_tag_dictionary & target)
+    {
+        uint16_t tag = static_cast<uint16_t>(*begin(stream_view)) * 256;
+        ++begin(stream_view); // skip char read before
+        tag += static_cast<uint16_t>(*begin(stream_view));
+        ++begin(stream_view); // skip char read before
+        ++begin(stream_view); // skip ':'
+        char type_char = *begin(stream_view);
+        ++begin(stream_view); // skip char read before
+        ++begin(stream_view); // skip ':'
+
+        switch (type_char)
+        {
+            case 'A' : // char
+            {
+                target[tag] = static_cast<char>(*begin(stream_view));
+                ++begin(stream_view); // skip char that has been read
+                break;
+            }
+            case 'i' : // int32_t
+            {
+                int32_t tmp;
+                read_field(stream_view, tmp);
+                target[tag] = tmp;
+                break;
+            }
+            case 'f' : // float
+            {
+                float tmp;
+                read_field(stream_view, tmp);
+                target[tag] = tmp;
+                break;
+            }
+            case 'Z' : // string
+            {
+                target[tag] = std::string(stream_view);
+                break;
+            }
+            case 'H' :
+            {
+                // TODO
+                break;
+            }
+            case 'B' : // Array. Value type depends on second char [cCsSiIf]
+            {
+                char value_type_char = *begin(stream_view);
+                ++begin(stream_view); // skip char read before
+                ++begin(stream_view); // skip first ','
+
+                switch (value_type_char)
+                {
+                    case 'c' : // int8_t
+                    {
+                        read_sam_dict_vector(target[tag], stream_view, int8_t{});
+                        break;
+                    }
+                    case 'C' : // uint8_t
+                    {
+                        read_sam_dict_vector(target[tag], stream_view, uint8_t{});
+                        break;
+                    }
+                    case 's' : // int16_t
+                    {
+                        read_sam_dict_vector(target[tag], stream_view, int16_t{});
+                        break;
+                    }
+                    case 'S' : // uint16_t
+                    {
+                        read_sam_dict_vector(target[tag], stream_view, uint16_t{});
+                        break;
+                    }
+                    case 'i' : // int32_t
+                    {
+                        read_sam_dict_vector(target[tag], stream_view, int32_t{});
+                        break;
+                    }
+                    case 'I' : // uint32_t
+                    {
+                        read_sam_dict_vector(target[tag], stream_view, uint32_t{});
+                        break;
+                    }
+                    case 'f' : // float
+                    {
+                        read_sam_dict_vector(target[tag], stream_view, float{});
+                        break;
+                    }
+                    default:
+                        throw parse_error(std::string("[SAM Parse Error] The first character in the numerical ") +
+                                          "id of a SAM tag must be one of [cCsSiIf] but " + value_type_char +
+                                          " was given.");
+                }
+                break;
+            }
+            default:
+                throw parse_error(std::string("[SAM Parse Error] The second character in the numerical id of a "
+                                  "SAM tag must be one of [A,i,Z,H,B,f] but ") + type_char + "was given.");
+        }
+    }
+
+    /*!\brief Reads the SAM header_ptr.
+     * \tparam stream_view_type     The type of the stream as a view.
+     * \param[in, out] stream_view  The stream view to iterate over.
+     * \param[in, out] header_ptr   The header_ptr (as a pointer) to store the parsed values.
+     *
+     * \throws seqan3::parse_error if any unexpected character or format is encountered.
+     *
+     * \details
+     *
+     * Reading the header format is done according to the official
+     * [SAM format specifications](https://samtools.github.io/hts-specs/SAMv1.pdf).
+     *
+     * The function throws a seqan3::parse_error if any unknown tag was encountered. It will also fail if the format is
+     * not in a correct state (e.g. required fields are not giving), but throwing might occur downstream of the actual
+     * error.
+     */
+    template <typename stream_view_type>
+    void read_header(stream_view_type && stream_view, std::unique_ptr<alignment_file_header> & header_ptr)
+    {
+        alignment_file_header & hdr{*header_ptr};
+
+        auto parse_tag_value = [&stream_view, this] (auto & value) // helper function to parse the next tag value
+            {
+                detail::consume(stream_view | view::take_until_or_throw(is_char<':'>)); // skip tag name
+                ++begin(stream_view);                                                   // skip ':'
+                read_field(stream_view | view::take_until_or_throw(is_char<'\t'> || is_char<'\n'>), value);
+                ++begin(stream_view);                                                   // skip tab or newline
+            };
+
+        // @HQ line
+        // -------------------------------------------------------------------------------------------------------------
+        parse_tag_value(hdr.format_version); // parse required VN (version) tag
+
+        // The SO, SS and GO tag are optional and can appear in any order
+        while (!is_char<'@'>(*begin(stream_view)))
+        {
+            std::string * who = &hdr.grouping;
+
+            if (is_char<'S'>(*begin(stream_view)))
+            {
+                ++begin(stream_view); // skip S
+
+                if (is_char<'O'>(*begin(stream_view)))          // SO (sorting) tag
+                    who = &hdr.sorting;
+                else if (is_char<'S'>(*begin(stream_view)))     // SS (sub-order) tag
+                    who = &hdr.subsorting;
+                else
+                    throw parse_error(std::string("Illegal SAM header tag: S" + (*begin(stream_view))));
+            }
+            else if (!is_char<'G'>(*begin(stream_view)))        // GO (grouping) tag
+            {
+                throw parse_error(std::string("Illegal SAM header tag in @HG starting with:" + (*begin(stream_view))));
+            }
+
+            parse_tag_value(*who);
+        }
+
+        // The rest of the header lines
+        // -------------------------------------------------------------------------------------------------------------
+        while (is_char<'@'>(*begin(stream_view)))
+        {
+            ++begin(stream_view); // skip @
+
+            if (is_char<'S'>(*begin(stream_view)))              // SQ (sequence dictionary) tag
+            {
+                std::string id;
+                std::tuple<uint32_t, std::string> tmp{};
+
+                parse_tag_value(id);                            // parse required SN (sequence name) tag
+                parse_tag_value(get<0>(tmp));                   // parse required LN (length) tag
+
+                if (!is_char<'@'>(*begin(stream_view)))         // read rest of the tags
+                {
+                    read_field(stream_view | view::take_until_or_throw(is_char<'\n'>), get<1>(tmp));
+                    ++begin(stream_view);
+                }
+
+                hdr.ref_dict[id] = tmp;
+            }
+            else if (is_char<'R'>(*begin(stream_view)))         // RG (read group) tag
+            {
+                std::pair<std::string, std::string> tmp{};
+
+                parse_tag_value(get<0>(tmp));                   // read required ID tag
+
+                if (!is_char<'@'>(*begin(stream_view)))         // read rest of the tags
+                {
+                    read_field(stream_view | view::take_until_or_throw(is_char<'\n'>), get<1>(tmp));
+                    ++begin(stream_view);
+                }
+
+                hdr.read_groups.emplace_back(std::move(tmp));
+            }
+            else if (is_char<'P'>(*begin(stream_view)))         // PG (program) tag
+            {
+                alignment_file_header::program_info_t tmp{};
+
+                parse_tag_value(tmp.id);                        // read required ID tag
+
+                // The PN, CL, PP, DS, VN are optional tags and can be given in any order.
+                while (!is_char<'@'>(*begin(stream_view)))
+                {
+                    std::string * who = &tmp.version;
+
+                    if (is_char<'P'>(*begin(stream_view)))
+                    {
+                        ++begin(stream_view); // skip P
+
+                        if (is_char<'N'>(*begin(stream_view)))  // PN (program name) tag
+                            who = &tmp.name;
+                        else                                    // PP (previous program) tag
+                            who = &tmp.previous;
+                    }
+                    else if (is_char<'C'>(*begin(stream_view))) // CL (command line) tag
+                    {
+                        who = &tmp.command_line_call;
+                    }
+                    else if (is_char<'D'>(*begin(stream_view))) // DS (description) tag
+                    {
+                        who = &tmp.description;
+                    }
+                    else if (!is_char<'V'>(*begin(stream_view))) // VN (version) tag
+                    {
+                        throw parse_error(std::string("Illegal SAM header tag starting with:" + (*begin(stream_view))));
+                    }
+
+                    parse_tag_value(*who);
+                }
+
+                hdr.program_infos.emplace_back(std::move(tmp));
+            }
+            else if (is_char<'C'>(*begin(stream_view)))         // CO (comment) tag
+            {
+                std::string tmp;
+                ++begin(stream_view); // skip C
+                ++begin(stream_view); // skip O
+                ++begin(stream_view); // skip :
+                read_field(stream_view | view::take_until_or_throw(is_char<'\n'>), tmp);
+                ++begin(stream_view); // skip newline
+
+                hdr.comments.emplace_back(std::move(tmp));
+            }
+            else
+            {
+                throw parse_error(std::string("Illegal SAM header tag starting with:" + (*begin(stream_view))));
+            }
+        }
+    }
 
     /*!\brief Writes a field value to the stream.
      * \tparam stream_it_t The stream iterator type.
@@ -441,14 +1071,16 @@ protected:
 
             // (@HD) Check header_ptr line
             // The format version string will be taken from the local member variable
-            if (!(header_ptr->sorting == "unknown"   ||
+            if (!header_ptr->sorting.empty() &&
+                !(header_ptr->sorting == "unknown"   ||
                   header_ptr->sorting == "unsorted"  ||
                   header_ptr->sorting == "queryname" ||
                   header_ptr->sorting == "coordinate" ))
                 throw format_error{"SAM format error: The header_ptr->sorting member must be "
                                    "one of [unknown, unsorted, queryname, coordinate]."};
 
-            if (!(header_ptr->grouping == "none"   ||
+            if (!header_ptr->grouping.empty() &&
+                !(header_ptr->grouping == "none"   ||
                   header_ptr->grouping == "query"  ||
                   header_ptr->grouping == "reference"))
                 throw format_error{"SAM format error: The header_ptr->grouping member must be "
@@ -476,6 +1108,9 @@ protected:
 
             if (!header_ptr->sorting.empty())
                 stream << "\tSO:" << header_ptr->sorting;
+
+            if (!header_ptr->subsorting.empty())
+                stream << "\tSS:" << header_ptr->subsorting;
 
             if (!header_ptr->grouping.empty())
                 stream << "\tGO:" << header_ptr->grouping;

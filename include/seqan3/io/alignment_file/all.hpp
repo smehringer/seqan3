@@ -17,7 +17,6 @@
  * \brief \todo document at a later point in time
  */
 
-#include <seqan3/io/alignment_file/detail.hpp>
 #include <seqan3/io/alignment_file/format_sam.hpp>
 #include <seqan3/io/alignment_file/header.hpp>
 #include <seqan3/io/alignment_file/input_options.hpp>

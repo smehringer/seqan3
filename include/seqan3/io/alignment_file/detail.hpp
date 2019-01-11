@@ -16,10 +16,15 @@
 
 #include <seqan3/alignment/aligned_sequence/aligned_sequence_concept.hpp>
 #include <seqan3/core/concept/tuple.hpp>
+#include <seqan3/range/view/take_until.hpp>
+#include <seqan3/std/charconv>
 #include <seqan3/std/concepts>
 #include <seqan3/std/ranges>
+#include <seqan3/std/view/subrange.hpp>
 
 #include <range/v3/view/zip.hpp>
+
+#include <seqan3/io/stream/debug_stream.hpp> // delete
 
 namespace seqan3::detail
 {
@@ -225,6 +230,97 @@ std::string get_cigar_string(alignment_type && alignment,
 {
     return get_cigar_string(get<0>(alignment), get<1>(alignment),
                             query_start_pos, query_end_pos, extended_cigar);
+}
+
+template <std::Integral soft_clipping_begin_type,
+          std::Integral soft_clipping_end_type,
+          std::ranges::InputRange cigar_view_type>
+std::vector<std::pair<char, size_t>> parse_cigar(soft_clipping_begin_type & soft_clipping_begin,
+                                                 soft_clipping_end_type & soft_clipping_end,
+                                                 cigar_view_type && cigar_view)
+{
+    auto constexpr is_cigar_op = is_char<'M'> || is_char<'I'> || is_char<'D'> || is_char<'S'> || is_char<'H'>;
+    std::vector<std::pair<char, size_t>> result{};
+    char buffer[50] = ""; // buffer to parse numbers with from_chars
+    char cigar_op{'\0'};
+    size_t cigar_count{0};
+
+    // check hard/soft clipping at the beginning manually
+    auto buffer_end = (ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).second;
+    cigar_op = *begin(cigar_view);
+    begin(cigar_view)++;
+
+    if (is_char<'H'>(cigar_op)) // hard clipping is ignored. parse the next operation
+    {
+        buffer_end = (ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).second;
+        cigar_op = *begin(cigar_view);
+        begin(cigar_view)++;
+    }
+
+    if (std::from_chars(&buffer[0], buffer_end, cigar_count).ec != std::errc{})
+        throw std::runtime_error("Corrupted cigar string encountered");
+
+    if (is_char<'S'>(cigar_op)) // check for soft clipping at the beginning
+        soft_clipping_begin = cigar_count;
+    else
+        result.push_back({cigar_op, cigar_count});
+
+    // parse the rest of the cigar
+    while (begin(cigar_view) != end(cigar_view)) // until stream is not empty
+    {
+        // write next count into buffer and keep track of ints length in variable idx
+        buffer_end = (ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).second;
+        cigar_op = *begin(cigar_view);
+        begin(cigar_view)++;
+
+        if (std::from_chars(&buffer[0], buffer_end, cigar_count).ec != std::errc{})
+            throw std::runtime_error("Corrupted cigar string encountered");
+
+        if (is_char<'S'>(cigar_op)) // we are at the end, hard clipping afterwards can be ignored
+        {
+            soft_clipping_end = cigar_count;
+            return result;
+        }
+
+        result.push_back({cigar_op, cigar_count});
+    }
+
+    return result;
+}
+
+template<tuple_like_concept alignment_type>
+//!\cond
+    requires std::tuple_size_v<remove_cvref_t<alignment_type>> == 2
+//!\endcond
+void alignment_from_cigar(alignment_type & alignment, std::vector<std::pair<char, size_t>> const & cigar)
+{
+    auto current_ref_pos  = std::get<0>(alignment).begin();
+    auto current_read_pos = std::get<1>(alignment).begin();
+
+    for (auto [cigar_op, cigar_count] : cigar)
+    {
+        if (is_char<'M'>(cigar_op))
+        {
+            current_ref_pos  += cigar_count;
+            current_read_pos += cigar_count;
+        }
+        else if (is_char<'D'>(cigar_op)) // insert gaps into read
+        {
+            assert(std::distance(current_read_pos, get<1>(alignment).end()) > 0);
+            current_read_pos = insert_gap(get<1>(alignment), current_read_pos, cigar_count);
+            current_read_pos += cigar_count;
+        }
+        else if (is_char<'I'>(cigar_op)) // Insert gaps into ref
+        {
+            assert(std::distance(current_ref_pos, get<0>(alignment).end()) > 0);
+            current_ref_pos = insert_gap(get<0>(alignment), current_ref_pos, cigar_count);
+            current_ref_pos += cigar_count;
+        }
+        else // illegal character
+        {
+            throw std::runtime_error(std::string("Illegal cigar operation: ") + std::string(1, cigar_op));
+        }
+    }
 }
 
 } // namespace seqan3::detail
