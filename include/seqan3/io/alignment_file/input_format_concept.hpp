@@ -33,7 +33,7 @@
 // ============================================================================
 
 /*!\file
- * \brief Provides seqan3::sequence_file_input_format_concept and auxiliary classes.
+ * \brief Provides seqan3::alignment_file_input_format_concept and auxiliary classes.
  * \author Svenja Mehringer <svenja.mehringer AT fu-berlin.de>
  */
 
@@ -56,9 +56,9 @@
 namespace seqan3
 {
 
-/*!\interface seqan3::sequence_file_input_format_concept <>
- * \brief The generic concept for sequence file in formats.
- * \ingroup sequence
+/*!\interface seqan3::alignment_file_input_format_concept <>
+ * \brief The generic concept for alignment file in formats.
+ * \ingroup alignment
  *
  * \details
  *
@@ -113,6 +113,27 @@ concept alignment_file_input_format_concept =
              e_value,
              bit_score
              ) } -> void;
+
+    { v.read(stream,
+             options,
+             std::ignore,
+             std::ignore,
+             header_ptr,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore,
+             std::ignore
+             ) } -> void;
 };
 //!\endcond
 
@@ -122,29 +143,58 @@ concept alignment_file_input_format_concept =
  * \{
  */
 
-/*!\fn void read(stream_type & stream, seqan3::alignment_file_input_options const & options, seq_type & alignment,
- *               id_type & id, qual_type & qualities)
+/*!\fn void read(stream_type & stream, alignment_file_input_options<seq_legal_alph_type> const & options,
+ *               ref_id_to_pos_map_type & ref_id_to_pos_map, ref_seqs_type & ref_seqs, header_type & header_ptr,
+ *               seq_type & seq, qual_type & qual, id_type & id, offset_type & offset, ref_seq_type & ref_seq,
+ *               ref_id_type & ref_id, ref_offset_type & ref_offset, align_type & align, flag_type & flag,
+ *               mapq_type & mapq, mate_type & mate, tag_dict_type & tag_dict, e_value_type & e_value,
+ *               bit_score_type & bit_score)
  * \brief Read from the specified stream and back-insert into the given field buffers.
  * \memberof seqan3::alignment_file_input_format_concept
- * \tparam stream_type      Input stream, must satisfy seqan3::istream_concept with `char`.
- * \tparam seq_type         Type of the seqan3::field::SEQ input; must satisfy std::ranges::OutputRange
- * over a seqan3::alphabet_concept.
- * \tparam id_type          Type of the seqan3::field::ID input; must satisfy std::ranges::OutputRange
- * over a seqan3::alphabet_concept.
- * \tparam qual_type        Type of the seqan3::field::QUAL input; must satisfy std::ranges::OutputRange
- * over a seqan3::quality_concept.
- * \param[in,out] stream    The input stream to read from.
- * \param[in]     options   File specific options passed to the format.
- * \param[out]    alignment  The buffer for seqan3::field::SEQ input, i.e. the "alignment".
- * \param[out]    id        The buffer for seqan3::field::ID input, e.g. the header line in FastA.
- * \param[out]    qualities The buffer for seqan3::field::QUAL input.
+ * \tparam stream_type            The input stream type; Must be derived from std::ostream.
+ * \tparam ref_id_to_pos_map_type std::map<ref_id_type, size_t> or decltype(std::ignore).
+ * \tparam ref_seqs_type          std::vector<ref_sequence_type> or decltype(std::ignore).
+ * \tparam seq_type               Type of the seqan3::field::SEQ input (see alignment_file_input_traits_concept).
+ * \tparam qual_type              Type of the seqan3::field::QUAL input (see alignment_file_input_traits_concept).
+ * \tparam id_type                Type of the seqan3::field::ID input (see alignment_file_input_traits_concept).
+ * \tparam offset_type            Type of the seqan3::field::OFFSET input (see alignment_file_input_traits_concept).
+ * \tparam ref_seq_type           Type of the seqan3::field::REF_SEQ input (see alignment_file_input_traits_concept).
+ * \tparam ref_id_type            Type of the seqan3::field::REF_ID input (see alignment_file_input_traits_concept).
+ * \tparam ref_offset_type        Type of the seqan3::field::REF_OFFSET input (see alignment_file_input_traits_concept).
+ * \tparam align_type             Type of the seqan3::field::ALIGNMENT input (see alignment_file_input_traits_concept).
+ * \tparam flag_type              Type of the seqan3::field::FLAG input (see alignment_file_input_traits_concept).
+ * \tparam mapq_type              Type of the seqan3::field::MAPQ input (see alignment_file_input_traits_concept).
+ * \tparam mate_type              std::tuple<ref_id_type, ref_offset_type, uint32_t> or decltype(std::ignore).
+ * \tparam tag_dict_type          seqan3::sam_tag_dictionary or decltype(std::ignore).
+ * \tparam e_value_type           Type of the seqan3::field::EVALUE input (see alignment_file_input_traits_concept).
+ * \tparam bit_score_type         Type of the seqan3::field::BIT_SCORE input (see alignment_file_input_traits_concept).
+ *
+ * \param[in,out] stream             The input stream to read from.
+ * \param[in]     options            File specific options passed to the format.
+ * \param[out]    ref_id_to_pos_map  A std::map of reference ids to the position in ref_seqs.
+ * \param[out]    ref_seqs           The reference sequences to the corresponding alignments.
+ * \param[out]    header_ptr         A pointer to the seqan3::alignment_file_header object.
+ * \param[out]    seq                The buffer for seqan3::field::SEQ input.
+ * \param[out]    qual               The buffer for seqan3::field::QUAL input.
+ * \param[out]    id                 The buffer for seqan3::field::ID input.
+ * \param[out]    offset             The buffer for seqan3::field::OFFSET input.
+ * \param[out]    ref_seq            The buffer for seqan3::field::REF_SEQ input.
+ * \param[out]    ref_id             The buffer for seqan3::field::REF_ID input.
+ * \param[out]    ref_offset         The buffer for seqan3::field::REF_OFFSET input.
+ * \param[out]    align              The buffer for seqan3::field::ALIGNMENT input.
+ * \param[out]    flag               The buffer for seqan3::field::FLAG input.
+ * \param[out]    mapq               The buffer for seqan3::field::MAPQ input.
+ * \param[out]    mate               The buffer for seqan3::field::MATE input.
+ * \param[out]    tag_dict           The buffer for seqan3::field::TAGS input.
+ * \param[out]    e_value            The buffer for seqan3::field::EVALUE input.
+ * \param[out]    bit_score          The buffer for seqan3::field::BIT_SCORE input.
  *
  * \details
  *
  * ### Additional requirements
  *
- *   * The function must also accept std::ignore as parameter for any of the fields.
- *     [this is enforced by the concept checker!]
+ *   * The function must also accept std::ignore as parameter for any of the fields,
+ *     except stream, options and header_ptr. [this is enforced by the concept checker!]
  *   * In this case the data read for that field shall be discarded by the format.
  */
  /*!\var static inline std::vector<std::string> seqan3::alignment_file_input_format_concept::file_extensions

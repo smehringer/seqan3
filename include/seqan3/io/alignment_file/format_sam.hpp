@@ -143,7 +143,6 @@ public:
               typename seq_legal_alph_type,
               typename ref_id_to_pos_map_type,
               typename ref_seqs_type,
-              typename header_type,
               typename seq_type,
               typename id_type,
               typename offset_type,
@@ -162,7 +161,7 @@ public:
               alignment_file_input_options<seq_legal_alph_type> const & SEQAN3_DOXYGEN_ONLY(options),
               ref_id_to_pos_map_type                                  & ref_id_to_pos_map,
               ref_seqs_type                                           & ref_seqs,
-              header_type                                             & header_ptr,
+              std::unique_ptr<alignment_file_header>                  & header_ptr,
               seq_type                                                & seq,
               qual_type                                               & qual,
               id_type                                                 & id,
@@ -194,28 +193,16 @@ public:
 
         // Header
         // -------------------------------------------------------------------------------------------------------------
-        if constexpr (!detail::decays_to_ignore_v<header_type>)
+        if (!header_was_read && (header_ptr != nullptr) && is_char<'@'>(*begin(stream_view)))
         {
-            if (!header_was_read && (header_ptr != nullptr) && is_char<'@'>(*begin(stream_view)))
-            {
-                read_header(stream_view, header_ptr);
-                header_was_read = true;
-            }
-            else
-            {
-                while (is_char<'@'>(*begin(stream_view)))
-                {
-                    detail::consume(stream_view | view::take_line);
-                    ++begin(stream_view); // skip newline
-                }
-            }
+            read_header(stream_view, header_ptr);
+            header_was_read = true;
         }
         else
         {
             while (is_char<'@'>(*begin(stream_view)))
             {
                 detail::consume(stream_view | view::take_line);
-                ++begin(stream_view); // skip newline
             }
         }
 
@@ -610,6 +597,7 @@ protected:
     //!\brief The format version string.
     static constexpr char format_version[4] = "1.6";
 
+    //!\brief A buffer used when parsing arithmetic values with std::from_chars.
     char buffer[100] = "";
 
     //!\brief A variable that tracks whether the header_ptr as been written or not.
@@ -620,13 +608,16 @@ protected:
 
     /*!\brief Decays to detail::consume for std::ignore.
      * \tparam stream_view_type  The type of the stream as a view.
+     * \tparam target_type       A type that decays to std::ignore.
      *
      * \param[in, out] stream_view  The stream view to consume.
      * \param[in, out] target       A std::ignore placeholder.
      */
     template <typename stream_view_type, typename target_type>
+    //!\cond
         requires detail::decays_to_ignore_v<target_type>
-    void read_field(stream_view_type && stream_view, target_type /*target*/)
+    //!\endcond
+    void read_field(stream_view_type && stream_view, target_type SEQAN3_DOXYGEN_ONLY(target))
     {
         detail::consume(stream_view);
     }
@@ -639,7 +630,9 @@ protected:
      * \param[in, out] target       The range to store the parsed sequence.
      */
     template <typename stream_view_type, std::ranges::ForwardRange target_range_type>
+    //!\cond
         requires requires (std::string s) { { view::char_to<value_type_t<target_range_type>>(s) }; }
+    //!\endcond
     void read_field(stream_view_type && stream_view, target_range_type & target)
     {
         ranges::copy(stream_view | view::char_to<value_type_t<target_range_type>>,
@@ -854,7 +847,6 @@ protected:
                 detail::consume(stream_view | view::take_until_or_throw(is_char<':'>)); // skip tag name
                 ++begin(stream_view);                                                   // skip ':'
                 read_field(stream_view | view::take_until_or_throw(is_char<'\t'> || is_char<'\n'>), value);
-                ++begin(stream_view);                                                   // skip tab or newline
             };
 
         // @HQ line
@@ -862,8 +854,9 @@ protected:
         parse_tag_value(hdr.format_version); // parse required VN (version) tag
 
         // The SO, SS and GO tag are optional and can appear in any order
-        while (!is_char<'@'>(*begin(stream_view)))
+        while (is_char<'\t'>(*begin(stream_view)))
         {
+            ++begin(stream_view); // skip tab
             std::string * who = &hdr.grouping;
 
             if (is_char<'S'>(*begin(stream_view)))
@@ -884,6 +877,7 @@ protected:
 
             parse_tag_value(*who);
         }
+        ++begin(stream_view);  // skip newline
 
         // The rest of the header lines
         // -------------------------------------------------------------------------------------------------------------
@@ -897,13 +891,15 @@ protected:
                 std::tuple<uint32_t, std::string> tmp{};
 
                 parse_tag_value(id);                            // parse required SN (sequence name) tag
+                ++begin(stream_view);                           // skip tab or newline
                 parse_tag_value(get<0>(tmp));                   // parse required LN (length) tag
 
-                if (!is_char<'@'>(*begin(stream_view)))         // read rest of the tags
+                if (is_char<'\t'>(*begin(stream_view)))         // read rest of the tags
                 {
+                    ++begin(stream_view);                       // skip tab
                     read_field(stream_view | view::take_until_or_throw(is_char<'\n'>), get<1>(tmp));
-                    ++begin(stream_view);
                 }
+                ++begin(stream_view);                           // skip newline
 
                 hdr.ref_dict[id] = tmp;
             }
@@ -913,11 +909,12 @@ protected:
 
                 parse_tag_value(get<0>(tmp));                   // read required ID tag
 
-                if (!is_char<'@'>(*begin(stream_view)))         // read rest of the tags
+                if (is_char<'\t'>(*begin(stream_view)))         // read rest of the tags
                 {
-                    read_field(stream_view | view::take_until_or_throw(is_char<'\n'>), get<1>(tmp));
                     ++begin(stream_view);
+                    read_field(stream_view | view::take_until_or_throw(is_char<'\n'>), get<1>(tmp));
                 }
+                ++begin(stream_view);                           // skip newline
 
                 hdr.read_groups.emplace_back(std::move(tmp));
             }
@@ -928,8 +925,9 @@ protected:
                 parse_tag_value(tmp.id);                        // read required ID tag
 
                 // The PN, CL, PP, DS, VN are optional tags and can be given in any order.
-                while (!is_char<'@'>(*begin(stream_view)))
+                while (is_char<'\t'>(*begin(stream_view)))
                 {
+                    ++begin(stream_view);                       // skip tab
                     std::string * who = &tmp.version;
 
                     if (is_char<'P'>(*begin(stream_view)))
@@ -956,6 +954,7 @@ protected:
 
                     parse_tag_value(*who);
                 }
+                ++begin(stream_view);                            // skip newline
 
                 hdr.program_infos.emplace_back(std::move(tmp));
             }

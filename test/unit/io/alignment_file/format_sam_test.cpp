@@ -17,6 +17,7 @@
 #include <seqan3/io/alignment_file/output_format_concept.hpp>
 #include <seqan3/io/alignment_file/format_sam.hpp>
 #include <seqan3/range/view/convert.hpp>
+#include <seqan3/test/pretty_printing.hpp>
 
 using namespace seqan3;
 
@@ -228,7 +229,7 @@ TEST(read_header, errors)
         std::string header_str
         {
             "@HD\tVN:1.0\n"
-            "@PG\tTT:this is not a valid tag\n"
+            "@PG\tID:prog\tTT:this is not a valid tag\n"
         };
         std::istringstream istream(header_str);
         EXPECT_THROW((format.read(istream, options, std::ignore, std::ignore,
@@ -333,12 +334,13 @@ TEST_F(alignment_data, read_in_nothing)
 
     alignment_file_format_sam format;
     alignment_file_input_options<dna5> options;
+    std::unique_ptr<alignment_file_header> header_ptr(new alignment_file_header{});
 
     for (unsigned i = 0; i < 3; ++i)
     {
         ASSERT_NO_THROW((format.read(istream, options, std::ignore,
-                                     std::ignore, std::ignore,
-                                     std::ignore, std::ignore, std::ignore, std::ignore, std::ignore,
+                                     std::ignore, header_ptr, std::ignore,
+                                     std::ignore, std::ignore, std::ignore, std::ignore,
                                      std::ignore, std::ignore, std::ignore,
                                      std::ignore, std::ignore, std::ignore,
                                      std::ignore, std::ignore, std::ignore)));
@@ -355,6 +357,7 @@ TEST_F(alignment_data, read_in_alignment_only)
         "read3\t43\tref\t3\t63\t1S1M1D4M1D1M1S\tref\t10\t300\tGGAGTATA\t!!*+,-./\n"
     };
 
+    std::unique_ptr<alignment_file_header> header_ptr(new alignment_file_header{});
     std::unordered_map<std::string, size_t> ref_id_to_position{{ref_id, 0}};
     std::vector<dna5_vector> ref_sequences{ref_seq};
     std::pair<std::vector<gapped<dna5>>, std::vector<gapped<dna5>>> alignment;
@@ -368,8 +371,8 @@ TEST_F(alignment_data, read_in_alignment_only)
     for (unsigned i = 0; i < 3; ++i)
     {
         ASSERT_NO_THROW((format.read(istream, options, ref_id_to_position,
-                                     ref_sequences, std::ignore,
-                                     std::ignore, std::ignore, std::ignore, std::ignore, std::ignore,
+                                     ref_sequences, header_ptr, std::ignore,
+                                     std::ignore, std::ignore, std::ignore, std::ignore,
                                      ref_id_in, std::ignore, alignment,
                                      std::ignore, std::ignore, std::ignore,
                                      std::ignore, std::ignore, std::ignore)));

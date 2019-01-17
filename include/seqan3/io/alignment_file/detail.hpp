@@ -28,6 +28,7 @@
 
 namespace seqan3::detail
 {
+
 /*!\brief Compares two aligned sequence values and returns their CIGAR operation.
  * \ingroup alignment_file
  * \tparam reference_char_type Must be equality comparable to seqan3::gap.
@@ -232,6 +233,24 @@ std::string get_cigar_string(alignment_type && alignment,
                             query_start_pos, query_end_pos, extended_cigar);
 }
 
+/*!\brief Transforms a cigar string into a vector of operation-count pairs (e.g. (M, 3)).
+ * \ingroup alignment_file
+ *
+ * \tparam soft_clipping_begin_type  The type of the soft clipping begin value; Must model std::Integral.
+ * \tparam soft_clipping_end_type    The type of the soft clipping end value; Must model std::Integral.
+ * \tparam cigar_view_type           A single pass input view over the cigar string.
+ *
+ * \param[out] soft_clipping_begin  Set to the soft clipping at the beginning of the alignment.
+ * \param[out] soft_clipping_end    Set to the soft clipping at the end of the alignment.
+ * \param[in]  cigar_view           The single pass input view over the cigar string to parse.
+ *
+ * \returns An std::vector of operation-count pairs, e.g. (M, 3), that describe the alignment.
+ *
+ * \details
+ *
+ * For example, the view over the cigar string "1S4M1D2M2S" will set soft_clipping_begin to 1, soft_clipping_end to 2
+ * and return the vector "[(M,4), (D,1), (M,2)]".
+ */
 template <std::Integral soft_clipping_begin_type,
           std::Integral soft_clipping_end_type,
           std::ranges::InputRange cigar_view_type>
@@ -288,6 +307,28 @@ std::vector<std::pair<char, size_t>> parse_cigar(soft_clipping_begin_type & soft
     return result;
 }
 
+/*!\brief Transforms a std::vector of operation-count pairs (representing the cigar string).
+ * \ingroup alignment_file
+ *
+ * \tparam alignment_type The type of alignment; Must model seqan3::tuple_like_concept.
+ *
+ * \param[out] alignment  The alignment to fill with gaps according to the cigar information.
+ * \param[in]  cigar      The cigar information given as a std::vector of operation-count pairs.
+ *
+ * \details
+ *
+ * ### Example:
+ *
+ * Given the following cigar string "4M2I5M2D1M", the cigar information extracted by seqan3::detail::parse_cigar
+ * would be "[(M,4), (I,2), (M,5), (D,2), (M,1)]". Given those cigar information, and an alignment variable containing
+ * the two unaligned sequences "(ATGGCGTAGAGC, ATGCCCCGTTGC)", the alignment fill be filled with the following gaps:
+ *
+ * ```
+ * ATGG--CGTAGAGC
+ * |||X  |||X|  |
+ * ATGCCCCGTTG--C
+ * ```
+ */
 template<tuple_like_concept alignment_type>
 //!\cond
     requires std::tuple_size_v<remove_cvref_t<alignment_type>> == 2
