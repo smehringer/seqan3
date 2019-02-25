@@ -508,3 +508,18 @@ TEST_F(alignment_file_input_sam_format_f, construct_from_stream_and_read_alignme
 
     EXPECT_EQ(counter, 3u);
 }
+
+TEST_F(alignment_file_input_sam_format_f, construct_from_stream_and_read_alignment_with_dummy)
+{
+    alignment_file_input fin{std::istringstream{input}, alignment_file_format_sam{}, fields<field::ALIGNMENT>{}};
+
+    size_t counter = 0;
+    for (auto & [ alignment ] : fin)
+    {
+        EXPECT_EQ(get<1>(alignment), get<1>(alignments_expected[counter]));
+
+        counter++;
+    }
+
+    EXPECT_EQ(counter, 3u);
+}

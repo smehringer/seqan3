@@ -33,7 +33,7 @@
 // ============================================================================
 
 /*!\file
- * \brief Provides seqan3::alignment_file_input_format_concept and auxiliary classes.
+ * \brief Provides seqan3::AlignmentFileInputFormat and auxiliary classes.
  * \author Svenja Mehringer <svenja.mehringer AT fu-berlin.de>
  */
 
@@ -56,7 +56,7 @@
 namespace seqan3
 {
 
-/*!\interface seqan3::alignment_file_input_format_concept <>
+/*!\interface seqan3::AlignmentFileInputFormat <>
  * \brief The generic concept for alignment file in formats.
  * \ingroup alignment
  *
@@ -68,7 +68,7 @@ namespace seqan3
  */
 //!\cond
 template <typename t>
-concept alignment_file_input_format_concept =
+SEQAN3_CONCEPT AlignmentFileInputFormat =
     requires (t                                                               & v,
               std::ifstream                                                   & stream,
               alignment_file_input_options<dna5>                              & options,
@@ -137,9 +137,9 @@ concept alignment_file_input_format_concept =
 };
 //!\endcond
 
-/*!\name Requirements for seqan3::alignment_file_input_format_concept
- * \brief You can expect these **members** on all types that implement seqan3::alignment_file_input_format_concept.
- * \memberof seqan3::alignment_file_input_format_concept
+/*!\name Requirements for seqan3::AlignmentFileInputFormat
+ * \brief You can expect these **members** on all types that implement seqan3::AlignmentFileInputFormat.
+ * \memberof seqan3::AlignmentFileInputFormat
  * \{
  */
 
@@ -150,7 +150,7 @@ concept alignment_file_input_format_concept =
  *               mapq_type & mapq, mate_type & mate, tag_dict_type & tag_dict, e_value_type & e_value,
  *               bit_score_type & bit_score)
  * \brief Read from the specified stream and back-insert into the given field buffers.
- * \memberof seqan3::alignment_file_input_format_concept
+ * \memberof seqan3::AlignmentFileInputFormat
  * \tparam stream_type            The input stream type; Must be derived from std::ostream.
  * \tparam ref_id_to_pos_map_type std::map<ref_id_type, size_t> or decltype(std::ignore).
  * \tparam ref_seqs_type          std::vector<ref_sequence_type> or decltype(std::ignore).
@@ -197,7 +197,7 @@ concept alignment_file_input_format_concept =
  *     except stream, options and header_ptr. [this is enforced by the concept checker!]
  *   * In this case the data read for that field shall be discarded by the format.
  */
- /*!\var static inline std::vector<std::string> seqan3::alignment_file_input_format_concept::file_extensions
+ /*!\var static inline std::vector<std::string> seqan3::AlignmentFileInputFormat::file_extensions
  * \brief The format type is required to provide a vector of all supported file extensions.
  */
 //!\}
@@ -208,7 +208,7 @@ namespace seqan3::detail
 {
 
 /*!\brief Auxiliary value metafuncton that checks whether a type is a seqan3::type_list and all types meet
- * seqan3::alignment_file_input_format_concept [default is false].
+ * seqan3::AlignmentFileInputFormat [default is false].
  * \ingroup core
  * \see seqan3::type_list_of_alignment_file_input_formats_concept
  */
@@ -216,20 +216,20 @@ template <typename t>
 constexpr bool is_type_list_of_alignment_file_input_formats_v = false;
 
 /*!\brief Auxiliary value metafuncton that checks whether a type is a seqan3::type_list and all types meet
- * seqan3::alignment_file_input_format_concept [overload].
+ * seqan3::AlignmentFileInputFormat [overload].
  * \ingroup core
   * \see seqan3::type_list_of_alignment_file_input_formats_concept
  */
 template <typename ... ts>
 constexpr bool is_type_list_of_alignment_file_input_formats_v<type_list<ts...>> =
-    (alignment_file_input_format_concept<ts> && ...);
+    (AlignmentFileInputFormat<ts> && ...);
 
 /*!\brief Auxiliary concept that checks whether a type is a seqan3::type_list and all types meet
- *        seqan3::alignment_file_input_format_concept.
+ *        seqan3::AlignmentFileInputFormat.
  * \ingroup core
  * \see seqan3::is_type_list_of_alignment_file_formats_v
  */
 template <typename t>
-concept type_list_of_alignment_file_input_formats_concept = is_type_list_of_alignment_file_input_formats_v<t>;
+SEQAN3_CONCEPT type_list_of_alignment_file_input_formats_concept = is_type_list_of_alignment_file_input_formats_v<t>;
 
 } // namespace seqan3::detail

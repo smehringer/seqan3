@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <range/v3/algorithm/copy.hpp>
+#include <range/v3/view/repeat_n.hpp>
 
 #include <seqan3/core/concept/core_language.hpp>
 #include <seqan3/core/concept/tuple.hpp>
@@ -29,6 +30,7 @@
 #include <seqan3/io/detail/ignore_output_iterator.hpp>
 #include <seqan3/io/detail/misc.hpp>
 #include <seqan3/io/stream/parse_condition.hpp>
+#include <seqan3/range/decorator/gap_decorator_anchor_set.hpp>
 #include <seqan3/range/detail/misc.hpp>
 #include <seqan3/range/view/char_to.hpp>
 #include <seqan3/range/view/take_exactly.hpp>
@@ -305,13 +307,22 @@ public:
                           "If you want to read ALIGNMENT but not SEQ, the alignment"
                           " object must store a sequence container at the second position.");
 
-            detail::consume(seq_stream | view::take_exactly_or_throw(offset_tmp));        // skip soft clipping at begin
+            // detail::consume(seq_stream | view::take_exactly_or_throw(offset_tmp));        // skip soft clipping at begin
+            for (; offset_tmp > 0; --offset_tmp) // offset_tmp is not needed anymore
+                ++begin(seq_stream);
 
-            for (auto chr : seq_stream | view::take_exactly_or_throw(seq_length))
-                get<1>(align).push_back(value_type_t<decltype(get<1>(align))>{}.assign_char(chr));
-            // read_field(seq_stream | view::take_exactly_or_throw(seq_length), get<1>(align)); why does this not work??
+            // for (auto chr : seq_stream | view::take_exactly_or_throw(seq_length))
+            //     get<1>(align).push_back(value_type_t<decltype(get<1>(align))>{}.assign_char(chr));
+            for (; seq_length > 0; --seq_length) // seq_length is not needed anymore
+            {
+                get<1>(align).push_back(value_type_t<decltype(get<1>(align))>{}.assign_char(*seq_stream.begin()));
+                ++begin(seq_stream);
+            }
 
-            detail::consume(seq_stream | view::take_exactly_or_throw(soft_clipping_end)); // skip soft clipping at end
+            // detail::consume(seq_stream | view::take_exactly_or_throw(soft_clipping_end)); // skip soft clipping at end
+            for (; soft_clipping_end > 0; --soft_clipping_end) // soft_clipping_end is not needed anymore
+                ++begin(seq_stream);
+
             assert(seq_stream.begin() == seq_stream.end());
         }
         else
@@ -320,9 +331,9 @@ public:
 
             if constexpr (!detail::decays_to_ignore_v<align_type>)
             {
-                // TODO instead of copying here, you can maybe gap decorate a subrange view
-                for (auto it = seq.begin() + offset_tmp; it != seq.end() - soft_clipping_end; ++it)
-                    get<1>(align).push_back(value_type_t<decltype(get<1>(align))>{*it});
+                assign_unaligned(get<1>(align),
+                                 view::subrange<decltype(seq.begin()), decltype(seq.begin())>
+                                     {seq.begin() + offset_tmp, seq.end() - soft_clipping_end});
             }
         }
         ++begin(stream_view);
@@ -372,15 +383,20 @@ public:
                 if (ref_offset_tmp + ref_length > ref_seqs[pos].size())
                     throw parse_error("[SAM PARSE ERROR] The alignment length exceeds the reference length.");
 
-                // copy over aligned reference sequence part
-                for (auto it = ref_seqs[pos].begin() + ref_offset_tmp;
-                     it != ref_seqs[pos].begin() + ref_offset_tmp + ref_length; ++it)
-                    get<0>(align).push_back(value_type_t<decltype(get<0>(align))>{*it});
+                // copy over unaligned reference sequence part
+                assign_unaligned(get<0>(align),
+                                 view::subrange<decltype(ref_seqs[pos].begin()), decltype(ref_seqs[pos].begin())>
+                                     {ref_seqs[pos].begin() + ref_offset_tmp,
+                                      ref_seqs[pos].begin() + ref_offset_tmp + ref_length});
             }
             else
             {
-                // std::cerr << "A dummy should be created now" << std::endl;
                 // create a dummy sequence of length ref_length and decorate it with a gap_decorator
+                using vtype = value_type_t<detail::unaligned_seq_t<decltype(get<0>(align))>>;
+                gap_decorator_anchor_set dec{ranges::view::repeat_n(vtype{}, ref_length) /*|
+                                             view::transform(detail::restrict_access)*/};
+                get<0>(align) = dec;
+                // assign_unaligned(get<0>(align), ranges::view::repeat_n(vtype{}, ref_length));
             }
 
             // insert gaps according to the cigar information
@@ -641,7 +657,7 @@ protected:
 
     /*!\brief Reads arithmetic fields using std::from_chars.
      * \tparam stream_view_type The type of the stream as a view.
-     * \tparam target_type      The type of value to parse from input; Must model seqan3::arithmetic_concept.
+     * \tparam target_type      The type of value to parse from input; Must model seqan3::Arithmetic.
      *
      * \param[in, out] stream_view  The stream view to iterate over.
      * \param[in, out] target       The arithmetic value object to store the parsed value.
@@ -649,7 +665,7 @@ protected:
      * \throws seqan3::parse_error if the character sequence in stream_view cannot be successfully converted to a value
      *         of type target_type.
      */
-    template <typename stream_view_type, seqan3::arithmetic_concept target_type>
+    template <typename stream_view_type, Arithmetic target_type>
     void read_field(stream_view_type && stream_view, target_type & target)
     {
         // unfortunately std::from_chars only accepts char const * so we need a buffer.

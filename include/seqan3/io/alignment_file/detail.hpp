@@ -244,7 +244,7 @@ std::string get_cigar_string(alignment_type && alignment,
  * \param[out] soft_clipping_end    Set to the soft clipping at the end of the alignment.
  * \param[in]  cigar_view           The single pass input view over the cigar string to parse.
  *
- * \returns An std::vector of operation-count pairs, e.g. (M, 3), that describe the alignment.
+ * \returns A std::vector of operation-count pairs, e.g. (M, 3), that describe the alignment.
  *
  * \details
  *
@@ -265,13 +265,13 @@ std::vector<std::pair<char, size_t>> parse_cigar(soft_clipping_begin_type & soft
     size_t cigar_count{0};
 
     // check hard/soft clipping at the beginning manually
-    auto buffer_end = (ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).second;
+    auto buffer_end = (std::ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).out;
     cigar_op = *begin(cigar_view);
     begin(cigar_view)++;
 
     if (is_char<'H'>(cigar_op)) // hard clipping is ignored. parse the next operation
     {
-        buffer_end = (ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).second;
+        buffer_end = (std::ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).out;
         cigar_op = *begin(cigar_view);
         begin(cigar_view)++;
     }
@@ -288,7 +288,7 @@ std::vector<std::pair<char, size_t>> parse_cigar(soft_clipping_begin_type & soft
     while (begin(cigar_view) != end(cigar_view)) // until stream is not empty
     {
         // write next count into buffer and keep track of ints length in variable idx
-        buffer_end = (ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).second;
+        buffer_end = (std::ranges::copy(cigar_view | view::take_until_or_throw(is_cigar_op), buffer)).out;
         cigar_op = *begin(cigar_view);
         begin(cigar_view)++;
 
@@ -342,20 +342,20 @@ void alignment_from_cigar(alignment_type & alignment, std::vector<std::pair<char
     {
         if (is_char<'M'>(cigar_op))
         {
-            current_ref_pos  += cigar_count;
-            current_read_pos += cigar_count;
+            std::advance(current_ref_pos , cigar_count);
+            std::advance(current_read_pos, cigar_count);
         }
         else if (is_char<'D'>(cigar_op)) // insert gaps into read
         {
             assert(std::distance(current_read_pos, get<1>(alignment).end()) > 0);
             current_read_pos = insert_gap(get<1>(alignment), current_read_pos, cigar_count);
-            current_read_pos += cigar_count;
+            std::advance(current_read_pos, cigar_count);
         }
         else if (is_char<'I'>(cigar_op)) // Insert gaps into ref
         {
             assert(std::distance(current_ref_pos, get<0>(alignment).end()) > 0);
             current_ref_pos = insert_gap(get<0>(alignment), current_ref_pos, cigar_count);
-            current_ref_pos += cigar_count;
+            std::advance(current_ref_pos , cigar_count);
         }
         else // illegal character
         {
@@ -363,5 +363,7 @@ void alignment_from_cigar(alignment_type & alignment, std::vector<std::pair<char
         }
     }
 }
+
+auto restrict_access = [] (auto chr) { throw std::logic_error{"NO ACCESS"}; return chr; };
 
 } // namespace seqan3::detail
