@@ -392,11 +392,10 @@ public:
             else
             {
                 // create a dummy sequence of length ref_length and decorate it with a gap_decorator
-                using vtype = value_type_t<detail::unaligned_seq_t<decltype(get<0>(align))>>;
-                gap_decorator_anchor_set dec{ranges::view::repeat_n(vtype{}, ref_length) /*|
-                                             view::transform(detail::restrict_access)*/};
-                get<0>(align) = dec;
-                // assign_unaligned(get<0>(align), ranges::view::repeat_n(vtype{}, ref_length));
+                // using vtype =s<< dummy << std::endl;
+                // gap_decorator_anchor_set dec{dummy};
+                // get<0>(align) = dec;
+                // assign_unaligned(get<0>(align), dec);
             }
 
             // insert gaps according to the cigar information

@@ -663,8 +663,8 @@ private:
 public:
     //!\brief The dummy...
     using dummy_ref_type = gap_decorator_anchor_set<
-                               decltype(ranges::view::repeat_n(typename traits_type::sequence_alphabet{}, size_t{}) /*|
-                                        view::transform(detail::restrict_access)*/)>;
+                               decltype(ranges::view::repeat_n(typename traits_type::sequence_alphabet{}, size_t{}) |
+                                        view::transform(detail::restrict_access))>;
 
     //!\brief The type of field::ALIGNMENT (default: std::pair<std::vector<gapped<dna5>>, std::vector<gapped<dna5>>>).
     using alignment_type = std::pair<std::conditional_t<file_has_ref_info, alignment_ref_type, dummy_ref_type>,

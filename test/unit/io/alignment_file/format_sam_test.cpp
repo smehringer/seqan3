@@ -387,27 +387,37 @@ TEST_F(alignment_data, read_in_alignment_only)
     }
 
     /*no reference information*/
-    using dummy_type = gap_decorator_anchor_set<decltype(ranges::view::repeat_n(dna5{}, size_t{}))>;
+
+    gap_decorator_anchor_set dec{ranges::view::repeat_n(dna5{}, size_t{3}) | view::transform(detail::restrict_access_lambda)};
+    dec.insert_gap(dec.begin(), 2);
+
+    using dummy_type = decltype(dec);
+        // gap_decorator_anchor_set<decltype(ranges::view::repeat_n(dna5{}, size_t{}) | detail::restrict_access_view)>;
     std::pair<dummy_type, std::vector<gapped<dna5>>> alignment2;
 
-    istream = std::istringstream(file_in_str);
-    for (unsigned i = 0; i < 3; ++i)
-    {
-        ASSERT_NO_THROW((format.read(istream, options,
-                                     std::ignore, std::ignore,
-                                     header_ptr,
-                                     std::ignore, std::ignore, std::ignore, std::ignore, std::ignore,
-                                     ref_id_in,
-                                     std::ignore,
-                                     alignment2,
-                                     std::ignore, std::ignore, std::ignore, std::ignore, std::ignore, std::ignore)));
+    // auto dummy = ranges::view::repeat_n(dna5{}, size_t{}) | detail::restrict_access_view;
 
-        EXPECT_EQ(get<1>(alignment2), get<1>(alignments[i]));
+    debug_stream << alignment2 << std::endl;
+// debug_stream << dummy.size() << std::endl;
 
-        alignment2 = std::pair<dummy_type, std::vector<gapped<dna5>>>{};
-        ref_id_in.clear();
+    // istream = std::istringstream(file_in_str);
+    // for (unsigned i = 0; i < 3; ++i)
+    // {
+    //     ASSERT_NO_THROW((format.read(istream, options,
+    //                                  std::ignore, std::ignore,
+    //                                  header_ptr,
+    //                                  std::ignore, std::ignore, std::ignore, std::ignore, std::ignore,
+    //                                  ref_id_in,
+    //                                  std::ignore,
+    //                                  alignment2,
+    //                                  std::ignore, std::ignore, std::ignore, std::ignore, std::ignore, std::ignore)));
 
-    }
+    //     EXPECT_EQ(get<1>(alignment2), get<1>(alignments[i]));
+
+    //     alignment2 = std::pair<dummy_type, std::vector<gapped<dna5>>>{};
+    //     ref_id_in.clear();
+
+    // }
 }
 
 // ----------------------------------------------------------------------------

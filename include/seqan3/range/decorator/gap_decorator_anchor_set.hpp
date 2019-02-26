@@ -368,8 +368,14 @@ public:
     ~gap_decorator_anchor_set() = default;
 
     //!\brief Construct with the ungapped range type.
-    constexpr gap_decorator_anchor_set(inner_type const & range) : ungapped_view{view::all(range)} {}
+    template <std::ranges::View view_type>
+    gap_decorator_anchor_set(view_type && range) : ungapped_view{view::all(range)} {}
+
+    gap_decorator_anchor_set(inner_type const & range) : ungapped_view{view::all(range)} {}
     // !\}
+
+    //!\brief Stores a (copy of a) view to the ungapped, underlying sequence.
+    decltype(view::all(std::declval<inner_type const &>())) ungapped_view{};
 
     /*!\brief Returns the total length of the aligned sequence.
      * \returns The total length of the aligned sequence (gaps included).
@@ -781,12 +787,20 @@ private:
         }
     }
 
-    //!\brief Stores a (copy of a) view to the ungapped, underlying sequence.
-    decltype(view::all(std::declval<inner_type const &>())) ungapped_view{};
 
     //!\brief Set storing the anchor gaps.
     anchor_set_type anchors{};
 };
+
+// template <std::ranges::ViewableRange inner_type>
+// constexpr gap_decorator_anchor_set(inner_type && range) -> gap_decorator_anchor_set<std::remove_reference_t<inner_type>>;
+
+template <std::ranges::View view_type>
+gap_decorator_anchor_set(view_type && range) -> gap_decorator_anchor_set<view_type>;
+
+template <std::ranges::RandomAccessRange range_type>
+    requires !std::ranges::View<range_type>
+gap_decorator_anchor_set(range_type const & range) -> gap_decorator_anchor_set<std::remove_reference_t<const range_type>>;
 
 } // namespace seqan
 
