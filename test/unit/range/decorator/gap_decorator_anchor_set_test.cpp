@@ -21,7 +21,7 @@
 
 using namespace seqan3;
 
-using decorator_t = gap_decorator_anchor_set<std::vector<dna4>>;
+using decorator_t = gap_decorator_anchor_set<std::vector<dna4> const &>;
 
 const std::vector<dna4> dummy_obj{}; // dummy lvalue for type declaration of views
 using decorator_t2 = gap_decorator_anchor_set<

@@ -364,7 +364,21 @@ void alignment_from_cigar(alignment_type & alignment, std::vector<std::pair<char
     }
 }
 
-auto restrict_access_lambda = [] (auto chr) { throw std::logic_error{"NO ACCESS"}; return chr; };
-auto restrict_access_view = view::transform(restrict_access_lambda);
+struct restrictor_fn
+{
+    template <typename chr_t>
+    chr_t operator()(chr_t chr) const
+    {
+         throw std::logic_error{"NO ACCESS"};
+         return chr;
+    }
+};
+
+inline constexpr restrictor_fn restrictor{};
+
+// auto restrict_foo(auto chr) { throw std::logic_error{"NO ACCESS"}; return chr; };
+
+auto const restrict_access_lambda = [] (auto chr) { throw std::logic_error{"NO ACCESS"}; return chr; };
+auto const restrict_access_view = view::transform(restrict_access_lambda);
 
 } // namespace seqan3::detail

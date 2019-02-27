@@ -72,9 +72,10 @@ namespace seqan3
  * it has no operator->. Note that it does model the std::ranges::InputIterator.
  *
  */
-template <std::ranges::RandomAccessRange inner_type>
+template <std::ranges::ViewableRange inner_type>
 //!\cond
-    requires std::ranges::SizedRange<inner_type>
+    requires std::ranges::RandomAccessRange<inner_type> && std::ranges::SizedRange<inner_type>
+    &&       (std::is_const_v<std::remove_reference_t<inner_type>> || std::ranges::View<inner_type>)
 //!\endcond
 class gap_decorator_anchor_set
 {
@@ -368,14 +369,12 @@ public:
     ~gap_decorator_anchor_set() = default;
 
     //!\brief Construct with the ungapped range type.
-    template <std::ranges::View view_type>
-    gap_decorator_anchor_set(view_type && range) : ungapped_view{view::all(range)} {}
-
-    gap_decorator_anchor_set(inner_type const & range) : ungapped_view{view::all(range)} {}
+    gap_decorator_anchor_set(inner_type range) : ungapped_view{view::all(std::forward<inner_type>(range))}
+    {}
     // !\}
 
     //!\brief Stores a (copy of a) view to the ungapped, underlying sequence.
-    decltype(view::all(std::declval<inner_type const &>())) ungapped_view{};
+    decltype(view::all(std::declval<inner_type &&>())) ungapped_view{};
 
     /*!\brief Returns the total length of the aligned sequence.
      * \returns The total length of the aligned sequence (gaps included).
@@ -792,15 +791,13 @@ private:
     anchor_set_type anchors{};
 };
 
-// template <std::ranges::ViewableRange inner_type>
-// constexpr gap_decorator_anchor_set(inner_type && range) -> gap_decorator_anchor_set<std::remove_reference_t<inner_type>>;
+template <std::ranges::ViewableRange urng_t>
+    requires std::ranges::RandomAccessRange<urng_t> && std::ranges::SizedRange<urng_t>
+gap_decorator_anchor_set(urng_t && range) -> gap_decorator_anchor_set<std::remove_reference_t<urng_t> const &>;
 
-template <std::ranges::View view_type>
-gap_decorator_anchor_set(view_type && range) -> gap_decorator_anchor_set<view_type>;
-
-template <std::ranges::RandomAccessRange range_type>
-    requires !std::ranges::View<range_type>
-gap_decorator_anchor_set(range_type const & range) -> gap_decorator_anchor_set<std::remove_reference_t<const range_type>>;
+template <std::ranges::View urng_t>
+    requires std::ranges::RandomAccessRange<urng_t> && std::ranges::SizedRange<urng_t>
+gap_decorator_anchor_set(urng_t range) -> gap_decorator_anchor_set<urng_t>;
 
 } // namespace seqan
 

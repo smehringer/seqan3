@@ -388,7 +388,7 @@ TEST_F(alignment_data, read_in_alignment_only)
 
     /*no reference information*/
 
-    gap_decorator_anchor_set dec{ranges::view::repeat_n(dna5{}, size_t{3}) | view::transform(detail::restrict_access_lambda)};
+    gap_decorator_anchor_set dec{ranges::view::repeat_n(dna5{}, size_t{3}) | view::transform(detail::restrictor)};
     dec.insert_gap(dec.begin(), 2);
 
     using dummy_type = decltype(dec);
