@@ -2,7 +2,7 @@
 name: Question
 about: Ask us about anything SeqAn-related that you would like to know.
 title: ''
-labels: 'question'
+labels: question
 assignees: ''
 
 ---

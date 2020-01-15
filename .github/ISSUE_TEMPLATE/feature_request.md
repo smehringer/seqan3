@@ -2,7 +2,7 @@
 name: Feature request
 about: Request a new feature that you would like to see in SeqAn.
 title: ''
-labels: 'feature/proposal'
+labels: ''
 assignees: ''
 
 ---
