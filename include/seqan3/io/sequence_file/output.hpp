@@ -24,6 +24,7 @@
 #include <seqan3/io/exception.hpp>
 #include <seqan3/std/filesystem>
 #include <seqan3/io/record.hpp>
+#include <seqan3/io/stream/iterator.hpp>
 #include <seqan3/io/detail/misc.hpp>
 #include <seqan3/io/detail/misc_output.hpp>
 #include <seqan3/io/detail/out_file_iterator.hpp>
@@ -163,7 +164,7 @@ namespace seqan3
 
 template <detail::fields_specialisation selected_field_ids_ = fields<field::seq, field::id, field::qual>,
           detail::type_list_of_sequence_file_output_formats valid_formats_ =
-              type_list<format_embl, format_fasta, format_fastq, format_genbank, format_sam>>
+              type_list</*format_embl, */format_fasta/*, format_fastq, format_genbank, format_sam*/>>
 class sequence_file_output
 {
 public:
@@ -267,6 +268,7 @@ public:
 
         // possibly add intermediate compression stream
         secondary_stream = detail::make_secondary_ostream(*primary_stream, filename);
+        stream_it = detail::fast_ostreambuf_iterator{*(secondary_stream->rdbuf())};
 
         // initialise format handler or throw if format is not found
         detail::set_format(format, filename);
@@ -299,6 +301,7 @@ public:
         secondary_stream{&stream, stream_deleter_noop},
         format{detail::sequence_file_output_format_exposer<file_format>{}}
     {
+        stream_it = detail::fast_ostreambuf_iterator{*(secondary_stream->rdbuf())};
         static_assert(list_traits::contains<file_format, valid_formats>,
                       "You selected a format that is not in the valid_formats of this file.");
     }
@@ -316,6 +319,7 @@ public:
         secondary_stream{&*primary_stream, stream_deleter_noop},
         format{detail::sequence_file_output_format_exposer<file_format>{}}
     {
+        stream_it = detail::fast_ostreambuf_iterator{*(secondary_stream->rdbuf())};
         static_assert(list_traits::contains<file_format, valid_formats>,
                       "You selected a format that is not in the valid_formats of this file.");
     }
@@ -579,6 +583,8 @@ protected:
     //!\brief The secondary stream is a compression layer on the primary or just points to the primary (no compression).
     stream_ptr_t secondary_stream{nullptr, stream_deleter_noop};
 
+    decltype(detail::fast_ostreambuf_iterator{*std::declval<std::istream &>().rdbuf()}) stream_it;
+
     //!\brief Type of the format, an std::variant over the `valid_formats`.
     using format_type = typename detail::variant_from_tags<valid_formats,
                                                            detail::sequence_file_output_format_exposer>::type;
@@ -603,7 +609,7 @@ protected:
         {
             if constexpr (!detail::decays_to_ignore_v<seq_qual_t>)
             {
-                f.write_sequence_record(*secondary_stream,
+                f.write_sequence_record(stream_it,
                                         options,
                                         seq_qual | views::get<0>,
                                         id,
@@ -611,7 +617,7 @@ protected:
             }
             else
             {
-                f.write_sequence_record(*secondary_stream,
+                f.write_sequence_record(stream_it,
                                         options,
                                         seq,
                                         id,

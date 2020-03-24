@@ -24,12 +24,14 @@
 #include <seqan3/core/type_traits/range.hpp>
 #include <seqan3/io/detail/ignore_output_iterator.hpp>
 #include <seqan3/io/detail/misc.hpp>
+#include <seqan3/io/stream/iterator.hpp>
 #include <seqan3/io/sequence_file/input_format_concept.hpp>
 #include <seqan3/io/sequence_file/input_options.hpp>
 #include <seqan3/io/sequence_file/output_format_concept.hpp>
 #include <seqan3/io/sequence_file/output_options.hpp>
 #include <seqan3/io/stream/iterator.hpp>
 #include <seqan3/range/detail/misc.hpp>
+#include <seqan3/range/shortcuts.hpp>
 #include <seqan3/range/views/char_to.hpp>
 #include <seqan3/range/views/istreambuf.hpp>
 #include <seqan3/range/views/join.hpp>
@@ -109,19 +111,17 @@ protected:
               typename seq_type,        // other constraints checked inside function
               typename id_type,
               typename qual_type>
-    void read_sequence_record(stream_type & stream,
+    void read_sequence_record(stream_type & stream_it,
                               sequence_file_input_options<legal_alph_type, seq_qual_combined> const & options,
                               seq_type & sequence,
                               id_type & id,
                               qual_type & SEQAN3_DOXYGEN_ONLY(qualities))
     {
-        auto stream_view = views::istreambuf(stream);
-
         // ID
-        read_id(stream_view, options, id);
+        read_id(stream_it, options, id);
 
         // Sequence
-        read_seq(stream_view, options, sequence);
+        read_seq(stream_it, options, sequence);
     }
 
     //!\copydoc sequence_file_output_format::write_sequence_record
@@ -129,13 +129,13 @@ protected:
               typename seq_type,        // other constraints checked inside function
               typename id_type,
               typename qual_type>
-    void write_sequence_record(stream_type & stream,
+    void write_sequence_record(stream_type & stream_it,
                                sequence_file_output_options const & options,
                                seq_type && sequence,
                                id_type && id,
                                qual_type && SEQAN3_DOXYGEN_ONLY(qualities))
     {
-        seqan3::detail::fast_ostreambuf_iterator stream_it{*stream.rdbuf()};
+        // seqan3::detail::fast_ostreambuf_iterator stream_it{*stream.rdbuf()};
 
         // ID
         if constexpr (detail::decays_to_ignore_v<id_type>)
@@ -170,15 +170,15 @@ private:
     template <typename stream_view_t,
               typename seq_legal_alph_type, bool seq_qual_combined,
               typename id_type>
-    void read_id(stream_view_t & stream_view,
+    void read_id(stream_view_t & stream_it,
                   sequence_file_input_options<seq_legal_alph_type, seq_qual_combined> const & options,
                   id_type & id)
     {
         auto const is_id = is_char<'>'> || is_char<';'>;
 
-        if (!is_id(*begin(stream_view)))
+        if (!is_id(*stream_it))
             throw parse_error{std::string{"Expected to be on beginning of ID, but "} + is_id.msg +
-                              " evaluated to false on " + detail::make_printable(*begin(stream_view))};
+                              " evaluated to false on " + detail::make_printable(*stream_it)};
 
         // read id
         if constexpr (!detail::decays_to_ignore_v<id_type>)
@@ -186,26 +186,26 @@ private:
             if (options.truncate_ids)
             {
             #if SEQAN3_WORKAROUND_VIEW_PERFORMANCE
-                auto it = stream_view.begin();
-                auto e = stream_view.end();
-                for (; (it != e) && (is_id || is_blank)(*it); ++it)
+                // auto it = stream_view.begin();
+                auto e = std::ranges::default_sentinel;
+                for (; (stream_it != e) && (is_id || is_blank)(*stream_it); ++stream_it)
                 {}
 
                 bool at_delimiter = false;
-                for (; it != e; ++it)
+                for (; stream_it != e; ++stream_it)
                 {
-                    if ((is_cntrl || is_blank)(*it))
+                    if ((is_cntrl || is_blank)(*stream_it))
                     {
                         at_delimiter = true;
                         break;
                     }
-                    id.push_back(assign_char_to(*it, std::ranges::range_value_t<id_type>{}));
+                    id.push_back(assign_char_to(*stream_it, std::ranges::range_value_t<id_type>{}));
                 }
 
                 if (!at_delimiter)
                     throw unexpected_end_of_input{"FastA ID line did not end in newline."};
 
-                for (; (it != e) && ((!is_char<'\n'>)(*it)); ++it)
+                for (; (stream_it != e) && ((!is_char<'\n'>)(*stream_it)); ++stream_it)
                 {}
 
             #else // ↑↑↑ WORKAROUND | ORIGINAL ↓↓↓
@@ -223,20 +223,20 @@ private:
             else
             {
             #if SEQAN3_WORKAROUND_VIEW_PERFORMANCE
-                auto it = stream_view.begin();
-                auto e = stream_view.end();
-                for (; (it != e) && (is_id || is_blank)(*it); ++it)
+                // auto it = stream_view.begin();
+                auto e = std::ranges::default_sentinel;
+                for (; (stream_it != e) && (is_id || is_blank)(*stream_it); ++stream_it)
                 {}
 
                 bool at_delimiter = false;
-                for (; it != e; ++it)
+                for (; stream_it != e; ++stream_it)
                 {
-                    if ((is_char<'\n'>)(*it))
+                    if ((is_char<'\n'>)(*stream_it))
                     {
                         at_delimiter = true;
                         break;
                     }
-                    id.push_back(assign_char_to(*it, std::ranges::range_value_t<id_type>{}));
+                    id.push_back(assign_char_to(*stream_it, std::ranges::range_value_t<id_type>{}));
                 }
 
                 if (!at_delimiter)
@@ -253,7 +253,8 @@ private:
         }
         else
         {
-            detail::consume(stream_view | views::take_line_or_throw);
+            for (; (stream_it != std::ranges::default_sentinel) && !is_cntrl(*stream_it); ++stream_it)
+               {}
         }
     }
 
@@ -261,32 +262,32 @@ private:
     template <typename stream_view_t,
               typename seq_legal_alph_type, bool seq_qual_combined,
               typename seq_type>
-    void read_seq(stream_view_t & stream_view,
+    void read_seq(stream_view_t & stream_it,
                    sequence_file_input_options<seq_legal_alph_type, seq_qual_combined> const &,
                    seq_type & seq)
     {
         auto constexpr is_id = is_char<'>'> || is_char<';'>;
+
 
         if constexpr (!detail::decays_to_ignore_v<seq_type>)
         {
             auto constexpr not_in_alph = !is_in_alphabet<seq_legal_alph_type>;
 
         #if SEQAN3_WORKAROUND_VIEW_PERFORMANCE
-            auto it = stream_view.begin();
-            auto e = stream_view.end();
-            for (; (it != e) && ((!is_id)(*it)); ++it)
+            auto e = std::ranges::default_sentinel;
+            for (; (stream_it != e) && ((!is_id)(*stream_it)); ++stream_it)
             {
-                if ((is_space || is_digit)(*it))
+                if ((is_space || is_digit)(*stream_it))
                     continue;
-                else if (not_in_alph(*it))
+                else if (not_in_alph(*stream_it))
                 {
                     throw parse_error{std::string{"Encountered an unexpected letter: "} +
                                         not_in_alph.msg +
                                         " evaluated to true on " +
-                                        detail::make_printable(*it)};
+                                        detail::make_printable(*stream_it)};
                 }
 
-                seq.push_back(assign_char_to(*it, std::ranges::range_value_t<seq_type>{}));
+                seq.push_back(assign_char_to(*stream_it, std::ranges::range_value_t<seq_type>{}));
             }
 
         #else // ↑↑↑ WORKAROUND | ORIGINAL ↓↓↓
@@ -310,7 +311,8 @@ private:
         }
         else
         {
-            detail::consume(stream_view | views::take_until(is_id));
+            for (; (stream_it != std::ranges::default_sentinel) && !is_id(*stream_it); ++stream_it)
+               {};
         }
     }
 

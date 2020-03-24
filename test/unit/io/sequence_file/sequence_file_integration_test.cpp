@@ -109,30 +109,30 @@ TEST(integration, view)
     EXPECT_EQ(reinterpret_cast<std::ostringstream&>(fout.get_stream()).str(), output);
 }
 
-TEST(integration, convert_fastq_to_fasta)
-{
-    std::string const fastq_in
-    {
-    "@ID1\n"
-    "ACGTT\n"
-    "+\n"
-    "!##$%\n"
-    "@ID2\n"
-    "TATTA\n"
-    "+\n"
-    ",BDEB\n"
-    };
+// TEST(integration, convert_fastq_to_fasta)
+// {
+//     std::string const fastq_in
+//     {
+//     "@ID1\n"
+//     "ACGTT\n"
+//     "+\n"
+//     "!##$%\n"
+//     "@ID2\n"
+//     "TATTA\n"
+//     "+\n"
+//     ",BDEB\n"
+//     };
 
-    std::string const fasta_out
-    {
-        "> ID1\n"
-        "ACGTT\n"
-        "> ID2\n"
-        "TATTA\n"
-    };
+//     std::string const fasta_out
+//     {
+//         "> ID1\n"
+//         "ACGTT\n"
+//         "> ID2\n"
+//         "TATTA\n"
+//     };
 
-    auto fout = seqan3::sequence_file_input{std::istringstream{fastq_in}, seqan3::format_fastq{}} |
-                seqan3::sequence_file_output{std::ostringstream{}, seqan3::format_fasta{}};
-    fout.get_stream().flush();
-    EXPECT_EQ(reinterpret_cast<std::ostringstream&>(fout.get_stream()).str(), fasta_out);
-}
+//     auto fout = seqan3::sequence_file_input{std::istringstream{fastq_in}, seqan3::format_fastq{}} |
+//                 seqan3::sequence_file_output{std::ostringstream{}, seqan3::format_fasta{}};
+//     fout.get_stream().flush();
+//     EXPECT_EQ(reinterpret_cast<std::ostringstream&>(fout.get_stream()).str(), fasta_out);
+// }

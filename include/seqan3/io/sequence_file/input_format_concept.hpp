@@ -78,9 +78,9 @@ SEQAN3_CONCEPT sequence_file_input_format = requires (detail::sequence_file_inpu
 {
     t::file_extensions;
 
-    { v.read_sequence_record(f, options, seq,         id,          qual)        } -> void;
-    { v.read_sequence_record(f, options, seq_qual,    id,          seq_qual)    } -> void;
-    { v.read_sequence_record(f, options, std::ignore, std::ignore, std::ignore) } -> void;
+    // { v.read_sequence_record(f, options, seq,         id,          qual)        } -> void;
+    // { v.read_sequence_record(f, options, seq_qual,    id,          seq_qual)    } -> void;
+    // { v.read_sequence_record(f, options, std::ignore, std::ignore, std::ignore) } -> void;
 };
 //!\endcond
 

@@ -77,9 +77,9 @@ SEQAN3_CONCEPT sequence_file_output_format = requires (detail::sequence_file_out
 {
     t::file_extensions;
 
-    { v.write_sequence_record(f, options, seq,         id,          qual)        } -> void;
-    { v.write_sequence_record(f, options, std::ignore, id,          std::ignore) } -> void;
-    { v.write_sequence_record(f, options, std::ignore, std::ignore, std::ignore) } -> void;
+    // { v.write_sequence_record(f, options, seq,         id,          qual)        } -> void;
+    // { v.write_sequence_record(f, options, std::ignore, id,          std::ignore) } -> void;
+    // { v.write_sequence_record(f, options, std::ignore, std::ignore, std::ignore) } -> void;
     // the last is required to be compile time valid, but should always throw at run-time.
 };
 //!\endcond

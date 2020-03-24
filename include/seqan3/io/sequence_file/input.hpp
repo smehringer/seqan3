@@ -26,6 +26,7 @@
 #include <seqan3/core/detail/pack_algorithm.hpp>
 #include <seqan3/core/type_list/traits.hpp>
 #include <seqan3/io/stream/concept.hpp>
+#include <seqan3/io/stream/iterator.hpp>
 #include <seqan3/io/exception.hpp>
 #include <seqan3/std/filesystem>
 #include <seqan3/io/record.hpp>
@@ -307,11 +308,11 @@ struct sequence_file_input_default_traits_aa : sequence_file_input_default_trait
 template <
     sequence_file_input_traits traits_type_ = sequence_file_input_default_traits_dna,
     detail::fields_specialisation selected_field_ids_ = fields<field::seq, field::id, field::qual>,
-    detail::type_list_of_sequence_file_input_formats valid_formats_ = type_list<format_embl,
-                                                                                format_fasta,
+    detail::type_list_of_sequence_file_input_formats valid_formats_ = type_list</*format_embl,*/
+                                                                                format_fasta/*,
                                                                                 format_fastq,
                                                                                 format_genbank,
-                                                                                format_sam>>
+                                                                                format_sam*/>>
 class sequence_file_input
 {
 public:
@@ -446,6 +447,7 @@ public:
 
         // possibly add intermediate compression stream
         secondary_stream = detail::make_secondary_istream(*primary_stream, filename);
+        stream_it = detail::fast_istreambuf_iterator{*(secondary_stream->rdbuf())};
 
         // initialise format handler or throw if format is not found
         detail::set_format(format, filename);
@@ -487,6 +489,7 @@ public:
 
         // possibly add intermediate compression stream
         secondary_stream = detail::make_secondary_istream(*primary_stream);
+        stream_it = detail::fast_istreambuf_iterator{*(secondary_stream->rdbuf())};
     }
 
     //!\overload
@@ -506,6 +509,7 @@ public:
 
         // possibly add intermediate compression stream
         secondary_stream = detail::make_secondary_istream(*primary_stream);
+        stream_it = detail::fast_istreambuf_iterator{*(secondary_stream->rdbuf())};
     }
     //!\}
 
@@ -599,6 +603,8 @@ protected:
     record_type record_buffer;
     //!\brief A larger (compared to stl default) stream buffer to use when reading from a file.
     std::vector<char> stream_buffer{std::vector<char>(1'000'000)};
+    //!\brief A larger (compared to stl default) stream buffer to use when reading from a file.
+    // std::vector<char> second_stream_buffer{std::vector<char>(1'000'000)};
     //!\}
 
     /*!\name Stream / file access
@@ -616,6 +622,8 @@ protected:
     stream_ptr_t primary_stream{nullptr, stream_deleter_noop};
     //!\brief The secondary stream is a compression layer on the primary or just points to the primary (no compression).
     stream_ptr_t secondary_stream{nullptr, stream_deleter_noop};
+
+    decltype(detail::fast_istreambuf_iterator{*std::declval<std::istream &>().rdbuf()}) stream_it;
 
     //!\brief Tracks whether the very first record is buffered when calling begin().
     bool first_record_was_read{false};
@@ -649,7 +657,7 @@ protected:
             // read new record
             if constexpr (selected_field_ids::contains(field::seq_qual))
             {
-                f.read_sequence_record(*secondary_stream,
+                f.read_sequence_record(stream_it,
                                        options,
                                        detail::get_or_ignore<field::seq_qual>(record_buffer),
                                        detail::get_or_ignore<field::id>(record_buffer),
@@ -657,7 +665,7 @@ protected:
             }
             else
             {
-                f.read_sequence_record(*secondary_stream,
+                f.read_sequence_record(stream_it,
                                        options,
                                        detail::get_or_ignore<field::seq>(record_buffer),
                                        detail::get_or_ignore<field::id>(record_buffer),
