@@ -18,8 +18,11 @@
 static_assert(false, "You need to have seqan 2.x");
 #else // SEQAN3_HAS_SEQAN2
 
+#include <seqan3/std/algorithm>
 #include <cstdlib>
 #include <seqan3/std/ranges>
+#include <string>
+#include <vector>
 
 #include <seqan/basic.h>
 #include <seqan/graph_msa.h>
@@ -30,6 +33,8 @@ static_assert(false, "You need to have seqan 2.x");
 
 #include <seqan3/alphabet/gap/gapped.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
+#include <seqan3/range/views/char_to.hpp>
+#include <seqan3/range/views/chunk.hpp>
 
 namespace seqan3::detail
 {
@@ -54,7 +59,7 @@ auto seqan2_msa_configuration()
     msaOpt.sc.data_gap_open = -13;  // tcoffee app default
     msaOpt.sc.data_gap_extend = -1; // tcoffee app default
     msaOpt.sc.data_match = 5;       // tcoffee app default
-    msaOpt.sc.data_match = -4;      // tcoffee app default
+    msaOpt.sc.data_mismatch = -4;   // tcoffee app default
 
     return msaOpt;
 }
@@ -106,14 +111,19 @@ auto align_multiple(std::vector<range_t> const & input)
         std::exit(EXIT_FAILURE);
     }
 
-    // fake result
-    seqan3::gap g{};
-    std::vector<std::vector<seqan3::gapped<seqan3::dna4>>> output
+    std::string mat;
+    seqan::convertAlignment(gAlign, mat);
+
+    using alph_type = seqan3::gapped<seqan3::dna4>;
+    std::vector<std::vector<alph_type>> output{seqan::length(seqan::stringSet(gAlign))};
+    size_t ali_len = mat.size() / output.size();
+
+    auto iter = output.begin();
+    for (auto && gapped_seq : mat | seqan3::views::char_to<alph_type> | seqan3::views::chunk(ali_len))
     {
-        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {'A'_dna4, 'A'_dna4,        g,        g, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4,        g,        g, 'G'_dna4, 'G'_dna4, 'G'_dna4}
-    };
+        iter->reserve(ali_len);
+        std::ranges::copy(gapped_seq, std::cpp20::back_inserter(*iter++));
+    }
 
     return output;
 }

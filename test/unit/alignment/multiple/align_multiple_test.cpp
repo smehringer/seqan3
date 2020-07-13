@@ -23,8 +23,8 @@ TEST(align_multiple_test, the_first_test)
     std::vector<std::vector<seqan3::gapped<seqan3::dna4>>> output
     {
         {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {'A'_dna4, 'A'_dna4,        g,        g, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4,        g,        g, 'G'_dna4, 'G'_dna4, 'G'_dna4}
+        {       g, 'A'_dna4, 'A'_dna4, 'C'_dna4,        g, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
+        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4,        g,        g, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4}
     };
 
     auto result = seqan3::align_multiple(input);
