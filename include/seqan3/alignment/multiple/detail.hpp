@@ -14,6 +14,7 @@
 
 #include <seqan3/core/algorithm/configuration.hpp>
 #include <seqan3/alignment/configuration/align_config_gap.hpp>
+#include <seqan3/alignment/configuration/align_config_band.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
 
 namespace seqan3::detail
@@ -33,7 +34,18 @@ auto seqan2_msa_configuration(seqan3_configuration_t const & config)
     seqan::appendValue(msaOpt.method, 0); // global alignment
     seqan::appendValue(msaOpt.method, 1); // local alignment
     msaOpt.build = 0; // neighbour joining to build the guide tree
-    msaOpt.pairwiseAlignmentMethod = 1; // unbanded
+
+    if constexpr (config.template exists<seqan3::align_cfg::band_fixed_size>())
+    {
+        msaOpt.pairwiseAlignmentMethod = 2; // banded
+        auto const & band = get<seqan3::align_cfg::band_fixed_size>(config);
+        msaOpt.bandWidth = band.upper_diagonal.get() - band.lower_diagonal.get();
+    }
+    else
+    {
+        msaOpt.pairwiseAlignmentMethod = 1; // unbanded
+    }
+
     score_type scMat;
     msaOpt.sc = scMat;
 
