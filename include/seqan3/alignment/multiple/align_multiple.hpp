@@ -114,12 +114,12 @@ auto align_multiple(std::vector<range_t> const & input)
     std::string mat;
     seqan::convertAlignment(gAlign, mat);
 
-    using alph_type = seqan3::gapped<seqan3::dna4>;
-    std::vector<std::vector<alph_type>> output{seqan::length(seqan::stringSet(gAlign))};
+    using gapped_alphabet_type = seqan3::gapped<seqan3::dna4>;
+    std::vector<std::vector<gapped_alphabet_type>> output{seqan::length(seqan::stringSet(gAlign))};
     size_t ali_len = mat.size() / output.size();
 
     auto iter = output.begin();
-    for (auto && gapped_seq : mat | seqan3::views::char_to<alph_type> | seqan3::views::chunk(ali_len))
+    for (auto && gapped_seq : mat | seqan3::views::char_to<gapped_alphabet_type> | seqan3::views::chunk(ali_len))
     {
         iter->reserve(ali_len);
         std::ranges::copy(gapped_seq, std::cpp20::back_inserter(*iter++));
