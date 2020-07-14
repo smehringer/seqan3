@@ -31,3 +31,23 @@ TEST(align_multiple_test, the_first_test)
 
     EXPECT_RANGE_EQ(output, result);
 }
+
+TEST(align_multiple_test, the_first_banded_test)
+{
+    std::vector<seqan3::dna4_vector> input{"AAAACCCGGG"_dna4, "AACCCGGG"_dna4, "AAAACGGG"_dna4};
+    seqan3::gap g{};
+    std::vector<std::vector<seqan3::gapped<seqan3::dna4>>> output
+    {
+        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
+        {       g, 'A'_dna4, 'A'_dna4, 'C'_dna4,        g, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
+        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4,        g,        g, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4}
+    };
+
+    auto cfg = seqan3::align_cfg::msa_default_configuration |
+               seqan3::align_cfg::band_fixed_size{seqan3::align_cfg::lower_diagonal{-4},
+                                                  seqan3::align_cfg::upper_diagonal{4}};
+
+    auto result = seqan3::align_multiple(input, cfg);
+
+    EXPECT_RANGE_EQ(output, result);
+}
