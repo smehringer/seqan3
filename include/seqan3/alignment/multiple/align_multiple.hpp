@@ -32,16 +32,24 @@ static_assert(false, "You need to have seqan 2.x");
 #include <seqan/stream.h>
 
 #include <seqan3/alignment/multiple/detail.hpp>
+#include <seqan3/alignment/configuration/align_config_gap.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
 #include <seqan3/range/views/char_to.hpp>
 #include <seqan3/range/views/chunk.hpp>
 
+namespace seqan3::align_cfg
+{
+
+constexpr configuration msa_default_configuration = gap{gap_scheme{gap_score{-1}, gap_open_score{-13}}};
+
+}
+
 namespace seqan3
 {
 
-template <std::ranges::forward_range range_t>
-auto align_multiple(std::vector<range_t> const & input)
+template <std::ranges::forward_range range_t, typename configuration_t = decltype(align_cfg::msa_default_configuration)>
+auto align_multiple(std::vector<range_t> const & input, configuration_t config = align_cfg::msa_default_configuration)
 {
     using score_type = seqan::Score<int>;
     using alphabet_type = decltype(detail::convert_alph_3_to_2(std::ranges::range_value_t<range_t>{}));
@@ -50,7 +58,7 @@ auto align_multiple(std::vector<range_t> const & input)
                                                      void,
                                                      seqan::WithoutEdgeId>>;
 
-    auto msaOpt = detail::seqan2_msa_configuration<alphabet_type, score_type>();
+    auto msaOpt = detail::seqan2_msa_configuration<alphabet_type, score_type>(config);
 
     // fill seqan2 data storage
     seqan::StringSet<sequence_type, seqan::Owner<>> sequenceSet;

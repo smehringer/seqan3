@@ -12,6 +12,10 @@
 
 #pragma once
 
+#include <seqan3/core/algorithm/configuration.hpp>
+#include <seqan3/alignment/configuration/align_config_gap.hpp>
+#include <seqan3/alphabet/nucleotide/dna4.hpp>
+
 namespace seqan3::detail
 {
 
@@ -21,8 +25,8 @@ auto convert_alph_3_to_2(seqan3::dna4 chr)
     return seqan::Dna{seqan3::to_char(chr)};
 }
 
-template <typename alphabet_type, typename score_type>
-auto seqan2_msa_configuration()
+template <typename alphabet_type, typename score_type, typename seqan3_configuration_t>
+auto seqan2_msa_configuration(seqan3_configuration_t const & config)
 {
     seqan::MsaOptions<alphabet_type, score_type> msaOpt{};
 
@@ -32,8 +36,11 @@ auto seqan2_msa_configuration()
     msaOpt.pairwiseAlignmentMethod = 1; // unbanded
     score_type scMat;
     msaOpt.sc = scMat;
-    msaOpt.sc.data_gap_open = -13;  // tcoffee app default
-    msaOpt.sc.data_gap_extend = -1; // tcoffee app default
+
+    // seqan2 tcoffee app default: gap -1, gap open -13
+    auto const & gaps = config.get_or(align_cfg::gap{gap_scheme{gap_score{-1}, gap_open_score{-13}}}).value;
+    msaOpt.sc.data_gap_open = gaps.get_gap_open_score();
+    msaOpt.sc.data_gap_extend = gaps.get_gap_score();
     msaOpt.sc.data_match = 5;       // tcoffee app default
     msaOpt.sc.data_mismatch = -4;   // tcoffee app default
 
