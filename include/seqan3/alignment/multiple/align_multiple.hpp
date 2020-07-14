@@ -31,40 +31,11 @@ static_assert(false, "You need to have seqan 2.x");
 #include <seqan/seq_io.h>
 #include <seqan/stream.h>
 
+#include <seqan3/alignment/multiple/detail.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
 #include <seqan3/range/views/char_to.hpp>
 #include <seqan3/range/views/chunk.hpp>
-
-namespace seqan3::detail
-{
-
-// unfortunately it doesn't work with out alphabets..
-auto convert_alph_3_to_2(seqan3::dna4 chr)
-{
-    return seqan::Dna{seqan3::to_char(chr)};
-}
-
-template <typename alphabet_type, typename score_type>
-auto seqan2_msa_configuration()
-{
-    seqan::MsaOptions<alphabet_type, score_type> msaOpt{};
-
-    seqan::appendValue(msaOpt.method, 0); // global alignment
-    seqan::appendValue(msaOpt.method, 1); // local alignment
-    msaOpt.build = 0; // neighbour joining to build the guide tree
-    msaOpt.pairwiseAlignmentMethod = 1; // unbanded
-    score_type scMat;
-    msaOpt.sc = scMat;
-    msaOpt.sc.data_gap_open = -13;  // tcoffee app default
-    msaOpt.sc.data_gap_extend = -1; // tcoffee app default
-    msaOpt.sc.data_match = 5;       // tcoffee app default
-    msaOpt.sc.data_mismatch = -4;   // tcoffee app default
-
-    return msaOpt;
-}
-
-} //seqan3::detail
 
 namespace seqan3
 {
