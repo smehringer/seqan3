@@ -51,7 +51,10 @@ namespace seqan3
 template <std::ranges::forward_range range_t, typename configuration_t = decltype(align_cfg::msa_default_configuration)>
 auto align_multiple(std::vector<range_t> const & input, configuration_t config = align_cfg::msa_default_configuration)
 {
-    using score_type = seqan::Score<int>;
+    using seqan3_alphabet_type = std::ranges::range_value_t<range_t>;
+    using score_type = std::conditional_t<seqan3::aminoacid_alphabet<seqan3_alphabet_type>,
+                                          seqan::Blosum62,
+                                          seqan::Score<int>>;
     using alphabet_type = decltype(detail::convert_alph_3_to_2(std::ranges::range_value_t<range_t>{}));
     using sequence_type = seqan::String<alphabet_type>;
     using graph_type = seqan::Graph<seqan::Alignment<seqan::StringSet<sequence_type, seqan::Dependent<>>,
@@ -93,7 +96,7 @@ auto align_multiple(std::vector<range_t> const & input, configuration_t config =
     std::string mat;
     seqan::convertAlignment(gAlign, mat);
 
-    using gapped_alphabet_type = seqan3::gapped<seqan3::dna4>;
+    using gapped_alphabet_type = seqan3::gapped<seqan3_alphabet_type>;
     std::vector<std::vector<gapped_alphabet_type>> output{seqan::length(seqan::stringSet(gAlign))};
     size_t ali_len = mat.size() / output.size();
 
