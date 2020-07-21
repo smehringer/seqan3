@@ -7,11 +7,15 @@
 
 #include <gtest/gtest.h>
 
+#include <seqan3/std/iterator>
+#include <string_view>
 #include <vector>
 
 #include <seqan3/alignment/multiple/align_multiple.hpp>
+#include <seqan3/alphabet/aminoacid/aa27.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
+#include <seqan3/range/views/char_to.hpp>
 #include <seqan3/test/expect_range_eq.hpp>
 
 using seqan3::operator""_dna4;
@@ -48,6 +52,35 @@ TEST(align_multiple_test, the_first_banded_test)
                                                   seqan3::align_cfg::upper_diagonal{4}};
 
     auto result = seqan3::align_multiple(input, cfg);
+
+    EXPECT_RANGE_EQ(output, result);
+}
+
+TEST(align_multiple_test, the_first_aminoacid_test)
+{
+    // sequences taken from seqan/apps/seqan_tcoffee/tests/1aab.fa
+    using seqan3::operator""_aa27;
+    std::vector<seqan3::aa27_vector> input
+    {
+        "KKDSNAPKRAMTSFMFFSSDFRSKHSDLSIVEMSKAAGAAWKELGPEERKVYEEMAEKDKERYKREM"_aa27,
+        "KPKRPRSAYNIYVSESFQEAKDDSAQGKLKLVNEAWKNLSPEEKQAYIQLAKDDRIRYDNEMKSWEEQMAE"_aa27,
+        "ADKPKRPLSAYMLWLNSARESIKRENPDFKVTEVAKKGGELWRGLKDKSEWEAKAATAKQNYIRALQEYERNGG"_aa27,
+        "DPNKPKRAPSAFFVFMGEFREEFKQKNPKNKSVAAVGKAAGERWKSLSESEKAPYVAKANKLKGEYNKAIAAYNKGESA"_aa27
+    };
+
+    // alignment taken from seqan/apps/seqan_tcoffee/tests/1aab.fasta
+    std::vector<std::vector<seqan3::gapped<seqan3::aa27>>> output{4};
+    using std::ranges::copy;
+    copy(std::string_view{"KKDSNAPKRAMTSFMFFSSDFRSKHSDLS-----IVEMSKAAGAAWKELGPEERKVYEEMAEKDKERYKREM---------"}
+         | seqan3::views::char_to<seqan3::gapped<seqan3::aa27>>, std::cpp20::back_inserter(output[0]));
+    copy(std::string_view{"-----KPKRPRSAYNIYVSESFQEAKDDS-----AQGKLKLVNEAWKNLSPEEKQAYIQLAKDDRIRYDNEMKSWEEQMAE"}
+         | seqan3::views::char_to<seqan3::gapped<seqan3::aa27>>, std::cpp20::back_inserter(output[1]));
+    copy(std::string_view{"---ADKPKRPLSAYMLWLNSARESIKRENPDFK-VTEVAKKGGELWRGL--KDKSEWEAKAATAKQNYIRALQEYER-NGG"}
+         | seqan3::views::char_to<seqan3::gapped<seqan3::aa27>>, std::cpp20::back_inserter(output[2]));
+    copy(std::string_view{"--DPNKPKRAPSAFFVFMGEFREEFKQKNPKNKSVAAVGKAAGERWKSLSESEKAPYVAKANKLKGEYNKAIAAYNKGESA"}
+         | seqan3::views::char_to<seqan3::gapped<seqan3::aa27>>, std::cpp20::back_inserter(output[3]));
+
+    auto result = seqan3::align_multiple(input);
 
     EXPECT_RANGE_EQ(output, result);
 }
