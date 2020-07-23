@@ -15,21 +15,55 @@
 #include <seqan3/core/algorithm/configuration.hpp>
 #include <seqan3/alignment/configuration/align_config_gap.hpp>
 #include <seqan3/alignment/configuration/align_config_band.hpp>
-#include <seqan3/alphabet/aminoacid/aa27.hpp>
-#include <seqan3/alphabet/nucleotide/dna4.hpp>
+#include <seqan3/alphabet/aminoacid/all.hpp>
+#include <seqan3/alphabet/nucleotide/all.hpp>
+
+#include <seqan/basic.h>
+#include <seqan/reduced_aminoacid.h>
 
 namespace seqan3::detail
 {
 
-// unfortunately it doesn't work with out alphabets..
+// unfortunately it doesn't work with our alphabets..
+// Nucleotide conversion------------------------------------------------------------------------------------------------
 auto convert_alph_3_to_2(seqan3::dna4 chr)
 {
     return seqan::Dna{seqan3::to_char(chr)};
 }
 
+auto convert_alph_3_to_2(seqan3::dna5 chr)
+{
+    return seqan::Dna5{seqan3::to_char(chr)};
+}
+
+auto convert_alph_3_to_2(seqan3::dna15 chr)
+{
+    return seqan::Iupac{seqan3::to_char(chr)};
+}
+
+auto convert_alph_3_to_2(seqan3::rna4 chr)
+{
+    return seqan::Rna{seqan3::to_char(chr)};
+}
+
+auto convert_alph_3_to_2(seqan3::rna5 chr)
+{
+    return seqan::Rna5{seqan3::to_char(chr)};
+}
+// Amino Acid conversion------------------------------------------------------------------------------------------------
 auto convert_alph_3_to_2(seqan3::aa27 chr)
 {
     return seqan::AminoAcid{seqan3::to_char(chr)};
+}
+
+auto convert_alph_3_to_2(seqan3::aa10murphy chr)
+{
+    return seqan::ReducedAminoAcid<seqan::Murphy10>{seqan3::to_char(chr)};
+}
+
+auto convert_alph_3_to_2(seqan3::aa10li chr)
+{
+    return seqan::ReducedAminoAcid<seqan::Li10>{seqan3::to_char(chr)};
 }
 
 template <typename alphabet_type, typename score_type, typename seqan3_configuration_t>
