@@ -91,7 +91,9 @@ auto seqan2_msa_configuration(seqan3_configuration_t const & config)
 
     // seqan2 tcoffee app default: gap -1, gap open -13
     auto const & gaps = config.get_or(align_cfg::gap{gap_scheme{gap_score{-1}, gap_open_score{-13}}}).value;
-    msaOpt.sc.data_gap_open = gaps.get_gap_open_score();
+    // convert to seqan2 gap score convention.
+    // See: https://docs.seqan.de/seqan/3-master-user/classseqan3_1_1gap__scheme.html
+    msaOpt.sc.data_gap_open = gaps.get_gap_open_score() + gaps.get_gap_score();
     msaOpt.sc.data_gap_extend = gaps.get_gap_score();
     if constexpr (std::is_same_v<score_type, seqan::Score<int>>)
     {
