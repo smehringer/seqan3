@@ -7,28 +7,37 @@
 
 #include <gtest/gtest.h>
 
-#include <seqan3/std/iterator>
 #include <string_view>
 #include <vector>
 
+#include <seqan3/alignment/configuration/align_config_gap.hpp>
 #include <seqan3/alignment/multiple/align_multiple.hpp>
+#include <seqan3/alignment/multiple/detail.hpp>
 #include <seqan3/alphabet/aminoacid/aa27.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
+#include <seqan3/alphabet/nucleotide/dna15.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
+#include <seqan3/alphabet/nucleotide/dna5.hpp>
 #include <seqan3/range/views/char_to.hpp>
+#include <seqan3/range/views/join.hpp>
+#include <seqan3/range/views/to_char.hpp>
 #include <seqan3/test/expect_range_eq.hpp>
 
+using seqan3::operator""_dna15;
 using seqan3::operator""_dna4;
+using seqan3::operator""_dna5;
+using seqan3::operator""_rna5;
+using seqan3::operator""_rna4;
 
-TEST(align_multiple_test, the_first_test)
+TEST(align_multiple_test, the_first_dna4_test)
 {
     std::vector<seqan3::dna4_vector> input{"AAAACCCGGG"_dna4, "AACCCGGG"_dna4, "AAAACGGG"_dna4};
     seqan3::gap g{};
     std::vector<std::vector<seqan3::gapped<seqan3::dna4>>> output
     {
         {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {       g, 'A'_dna4, 'A'_dna4, 'C'_dna4,        g, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4,        g,        g, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4}
+        {       g,        g, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
+        {       g,        g, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4}
     };
 
     auto result = seqan3::align_multiple(input);
@@ -43,8 +52,8 @@ TEST(align_multiple_test, the_first_banded_test)
     std::vector<std::vector<seqan3::gapped<seqan3::dna4>>> output
     {
         {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {       g, 'A'_dna4, 'A'_dna4, 'C'_dna4,        g, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
-        {'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4,        g,        g, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4}
+        {       g,        g, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4},
+        {       g,        g, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'A'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'G'_dna4}
     };
 
     auto cfg = seqan3::align_cfg::msa_default_configuration |
@@ -83,4 +92,99 @@ TEST(align_multiple_test, the_first_aminoacid_test)
     auto result = seqan3::align_multiple(input);
 
     EXPECT_RANGE_EQ(output, result);
+}
+
+TEST(align_multiple_test, the_first_rna5_test)
+{
+    // alignment generated with seqan_tcoffee app: ./seqan_tcoffee -s data/rna5.fa -a rna -o data/out.fa
+    std::vector<seqan3::rna5_vector> input{"UUUNCCCGGG"_rna5, "UUCCCGGG"_rna5, "UUUNCGGG"_rna5};
+    seqan3::gap g{};
+    std::vector<std::vector<seqan3::gapped<seqan3::rna5>>> output
+    {
+        {'U'_rna5, 'U'_rna5, 'U'_rna5, 'N'_rna5, 'C'_rna5, 'C'_rna5, 'C'_rna5, 'G'_rna5, 'G'_rna5, 'G'_rna5},
+        {'U'_rna5, 'U'_rna5,        g,        g, 'C'_rna5, 'C'_rna5, 'C'_rna5, 'G'_rna5, 'G'_rna5, 'G'_rna5},
+        {'U'_rna5, 'U'_rna5,        g,        g, 'U'_rna5, 'N'_rna5, 'C'_rna5, 'G'_rna5, 'G'_rna5, 'G'_rna5}
+    };
+
+    auto result = seqan3::align_multiple(input);
+
+    EXPECT_RANGE_EQ(output, result);
+}
+
+TEST(align_multiple_test, the_first_gap_score_test)
+{
+    // alignment generated with seqan_tcoffee app: ./seqan_tcoffee -s data/dna1.fa -a dna -g -10 -e -2 -o data/out_g1.fa
+    std::vector<seqan3::dna4_vector> input{"ACGGTGG"_dna4, "ACCGTGCC"_dna4, "GCCGGTGCC"_dna4};
+    seqan3::gap g{};
+    std::vector<std::vector<seqan3::gapped<seqan3::dna4>>> output
+    {
+        {'A'_dna4,        g, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'T'_dna4, 'G'_dna4, 'G'_dna4,        g},
+        {'A'_dna4,        g, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'T'_dna4, 'G'_dna4, 'C'_dna4, 'C'_dna4},
+        {'G'_dna4, 'C'_dna4, 'C'_dna4, 'G'_dna4, 'G'_dna4, 'T'_dna4, 'G'_dna4, 'C'_dna4, 'C'_dna4}
+    };
+
+    constexpr seqan3::configuration cfg = seqan3::align_cfg::gap{seqan3::gap_scheme{seqan3::gap_score{-2},
+                                                                                    seqan3::gap_open_score{-8}}};
+
+    auto result = seqan3::align_multiple(input, cfg);
+
+    EXPECT_RANGE_EQ(output, result);
+}
+
+TEST(align_multiple_test, the_second_gap_score_test)
+{
+    // alignment generated with seqan_tcoffee app: ./seqan_tcoffee -s data/dna2.fa -a dna -g -2 -e -2 -o data/out_g2.fa
+    std::vector<seqan3::dna5_vector> input{"NNTGTNN"_dna5, "GGTNTNNGT"_dna5, "NGTNTGGG"_dna5};
+    seqan3::gap g{};
+    std::vector<std::vector<seqan3::gapped<seqan3::dna5>>> output
+    {
+        {'N'_dna5, 'N'_dna5, 'T'_dna5, 'G'_dna5, 'T'_dna5, 'N'_dna5,        g, 'N'_dna5,        g,        g,        g,        g,        g},
+        {'G'_dna5,        g,        g, 'G'_dna5, 'T'_dna5, 'N'_dna5, 'T'_dna5, 'N'_dna5, 'N'_dna5, 'G'_dna5, 'T'_dna5,        g,        g},
+        {       g, 'N'_dna5,        g, 'G'_dna5, 'T'_dna5, 'N'_dna5, 'T'_dna5,        g,        g, 'G'_dna5,        g, 'G'_dna5, 'G'_dna5}
+    };
+
+    constexpr seqan3::configuration cfg = seqan3::align_cfg::gap{seqan3::gap_scheme{seqan3::gap_score{-2},
+                                                                                    seqan3::gap_open_score{0}}};
+
+    auto result = seqan3::align_multiple(input, cfg);
+
+    EXPECT_RANGE_EQ(output, result);
+}
+
+TEST(align_multiple_test, the_third_gap_score_test)
+{
+    // alignment generated with seqan_tcoffee app: ./seqan_tcoffee -s data/dna3.fa -a dna -g -16 -e -4 -o data/out_g3.fa
+    std::vector<seqan3::dna15_vector> input{"GGGTGGYTG"_dna15, "KTGTGGYTYTG"_dna15, "KTGTYYYTG"_dna15};
+    seqan3::gap g{};
+    std::vector<std::vector<seqan3::gapped<seqan3::dna15>>> output
+    {
+        {'G'_dna15, 'G'_dna15, 'G'_dna15, 'T'_dna15, 'G'_dna15, 'G'_dna15,         g,         g, 'Y'_dna15, 'T'_dna15, 'G'_dna15},
+        {'K'_dna15, 'T'_dna15, 'G'_dna15, 'T'_dna15, 'G'_dna15, 'G'_dna15, 'Y'_dna15, 'T'_dna15, 'Y'_dna15, 'T'_dna15, 'G'_dna15},
+        {'K'_dna15, 'T'_dna15, 'G'_dna15, 'T'_dna15, 'Y'_dna15, 'Y'_dna15,         g,         g, 'Y'_dna15, 'T'_dna15, 'G'_dna15}
+    };
+
+    constexpr seqan3::configuration cfg = seqan3::align_cfg::gap{seqan3::gap_scheme{seqan3::gap_score{-4},
+                                                                                    seqan3::gap_open_score{-12}}};
+
+    auto result = seqan3::align_multiple(input, cfg);
+
+    EXPECT_RANGE_EQ(output, result);
+}
+
+TEST(align_multiple_test, gap_score_conversion_test)
+{
+    // with go = -1, g = -1
+    constexpr seqan3::configuration cfg = seqan3::align_cfg::gap{seqan3::gap_scheme{seqan3::gap_score{-1},
+                                                                                    seqan3::gap_open_score{-1}}};
+    // seqan2 does not add a gap score for the first gap character but just the gap open score
+    // seqan3 does add the gap extension score additionally to the open score for the first gap character
+    // we need an alphabet type.
+    using alphabet_type = seqan::Rna;
+    // we need a score type.
+    using score_type = seqan::Score<int>;
+
+    auto msaOpt = seqan3::detail::seqan2_msa_configuration<alphabet_type, score_type>(cfg);
+
+    EXPECT_EQ(msaOpt.sc.data_gap_extend, -1);
+    EXPECT_EQ(msaOpt.sc.data_gap_open, -2);
 }
