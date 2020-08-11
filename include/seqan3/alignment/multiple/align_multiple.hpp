@@ -52,9 +52,7 @@ template <std::ranges::forward_range range_t, typename configuration_t = decltyp
 auto align_multiple(std::vector<range_t> const & input, configuration_t config = align_cfg::msa_default_configuration)
 {
     using seqan3_alphabet_type = std::ranges::range_value_t<range_t>;
-    using score_type = std::conditional_t<seqan3::aminoacid_alphabet<seqan3_alphabet_type>,
-                                          seqan::Blosum62,
-                                          seqan::Score<int>>;
+
     using alphabet_type = decltype(detail::convert_alph_3_to_2(std::ranges::range_value_t<range_t>{}));
     using sequence_type = seqan::String<alphabet_type>;
     using graph_type = seqan::Graph<seqan::Alignment<seqan::StringSet<sequence_type, seqan::Dependent<>>,
@@ -63,7 +61,7 @@ auto align_multiple(std::vector<range_t> const & input, configuration_t config =
 
     detail::validate_configuration(config);
 
-    auto msaOpt = detail::seqan2_msa_configuration<alphabet_type, score_type>(config);
+    auto msaOpt = detail::seqan2_msa_configuration<alphabet_type>(config);
 
     // fill seqan2 data storage
     seqan::StringSet<sequence_type, seqan::Owner<>> sequenceSet;
