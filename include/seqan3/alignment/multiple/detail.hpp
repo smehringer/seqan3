@@ -12,11 +12,13 @@
 
 #pragma once
 
-#include <seqan3/core/algorithm/configuration.hpp>
-#include <seqan3/alignment/configuration/align_config_gap.hpp>
 #include <seqan3/alignment/configuration/align_config_band.hpp>
+#include <seqan3/alignment/configuration/align_config_gap.hpp>
+#include <seqan3/alignment/configuration/align_config_scoring.hpp>
 #include <seqan3/alphabet/aminoacid/all.hpp>
 #include <seqan3/alphabet/nucleotide/all.hpp>
+#include <seqan3/core/algorithm/configuration.hpp>
+#include <seqan3/core/detail/type_inspection.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/reduced_aminoacid.h>
@@ -64,6 +66,30 @@ auto convert_alph_3_to_2(seqan3::aa10murphy chr)
 auto convert_alph_3_to_2(seqan3::aa10li chr)
 {
     return seqan::ReducedAminoAcid<seqan::Li10>{seqan3::to_char(chr)};
+}
+
+/*!
+ * \brief Predicate that represents whether `candidate_t` is a type that is not allowed as MSA configuration.
+ * \tparam candidate_t The type to test.
+ *
+ * \details
+ * The predicate's value is set to: NOT (band OR gap OR scoring).
+ */
+template <typename candidate_t>
+struct is_invalid_msa_config :
+    std::negation<std::disjunction<std::is_same<candidate_t, seqan3::align_cfg::band_fixed_size>,
+                                   is_type_specialisation_of<candidate_t, seqan3::align_cfg::gap>,
+                                   is_type_specialisation_of<candidate_t, seqan3::align_cfg::scoring>>>{};
+
+/*!
+ * \brief Validate the given MSA configuration.
+ * \tparam configs_t The specified configuration elements.
+ */
+template <detail::config_element_specialisation ... configs_t>
+void validate_configuration(seqan3::configuration<configs_t...> const &)
+{
+    static_assert(seqan3::pack_traits::find_if<is_invalid_msa_config, configs_t...> == -1,
+                  "The given MSA configuration is not valid.");
 }
 
 template <typename alphabet_type, typename score_type, typename seqan3_configuration_t>

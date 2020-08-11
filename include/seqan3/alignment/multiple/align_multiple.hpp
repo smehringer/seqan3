@@ -61,6 +61,8 @@ auto align_multiple(std::vector<range_t> const & input, configuration_t config =
                                                      void,
                                                      seqan::WithoutEdgeId>>;
 
+    detail::validate_configuration(config);
+
     auto msaOpt = detail::seqan2_msa_configuration<alphabet_type, score_type>(config);
 
     // fill seqan2 data storage
