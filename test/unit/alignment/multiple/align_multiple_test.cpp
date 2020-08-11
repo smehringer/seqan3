@@ -178,10 +178,8 @@ TEST(align_multiple_test, gap_score_conversion_test)
     // seqan3 does add the gap extension score additionally to the open score for the first gap character
     // we need an alphabet type.
     using alphabet_type = seqan::Rna;
-    // we need a score type.
-    using score_type = seqan::Score<int>;
 
-    auto msaOpt = seqan3::detail::seqan2_msa_configuration<alphabet_type, score_type>(cfg);
+    auto msaOpt = seqan3::detail::seqan2_msa_configuration<alphabet_type>(cfg);
 
     EXPECT_EQ(msaOpt.sc.data_gap_extend, -1);
     EXPECT_EQ(msaOpt.sc.data_gap_open, -2);

@@ -91,9 +91,15 @@ void validate_configuration(seqan3::configuration<configs_t...> const &)
                   "The given MSA configuration is not valid.");
 }
 
-template <typename alphabet_type, typename score_type, typename seqan3_configuration_t>
+template <typename alphabet_type, typename seqan3_configuration_t>
 auto seqan2_msa_configuration(seqan3_configuration_t const & config)
 {
+    using score_type = std::conditional_t<std::same_as<alphabet_type, seqan::AminoAcid> ||
+                                          std::same_as<alphabet_type, seqan::ReducedAminoAcid<seqan::Murphy10>> ||
+                                          std::same_as<alphabet_type, seqan::ReducedAminoAcid<seqan::Li10>>,
+                                          seqan::Blosum62,
+                                          seqan::Score<int>>;
+
     seqan::MsaOptions<alphabet_type, score_type> msaOpt{};
 
     seqan::appendValue(msaOpt.method, 0); // global alignment
