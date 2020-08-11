@@ -18,7 +18,6 @@
 #include <seqan3/alphabet/aminoacid/all.hpp>
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <seqan3/core/algorithm/configuration.hpp>
-#include <seqan3/core/detail/type_inspection.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/reduced_aminoacid.h>
