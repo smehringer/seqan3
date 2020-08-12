@@ -15,9 +15,11 @@
 #include <seqan3/alignment/configuration/align_config_band.hpp>
 #include <seqan3/alignment/configuration/align_config_gap.hpp>
 #include <seqan3/alignment/configuration/align_config_scoring.hpp>
+#include <seqan3/alignment/scoring/nucleotide_scoring_scheme.hpp>
 #include <seqan3/alphabet/aminoacid/all.hpp>
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <seqan3/core/algorithm/configuration.hpp>
+#include <seqan3/core/type_traits/template_inspection.hpp>
 
 #include <seqan/basic.h>
 #include <seqan/reduced_aminoacid.h>
@@ -92,7 +94,37 @@ void validate_configuration(seqan3::configuration<configs_t...> const &)
 }
 
 template <typename alphabet_type, typename seqan3_configuration_t>
-auto seqan2_msa_configuration(seqan3_configuration_t const & config)
+    requires seqan3_configuration_t::template exists<seqan3::align_cfg::scoring>()
+auto initialise_scoring_scheme(seqan3_configuration_t const & config)
+{
+    auto scoring_scheme = get<seqan3::align_cfg::scoring>(config).value;
+    using scoring_scheme_alphabet_type = typename decltype(scoring_scheme)::alphabet_type; // seqan3 alphabet
+    using score_matrix_alphabet_type = decltype(convert_alph_3_to_2(scoring_scheme_alphabet_type{})); // seqan2 alphabet
+    using score_matrix_type = seqan::Score<int, seqan::ScoreMatrix<score_matrix_alphabet_type>>;
+
+    seqan::MsaOptions<alphabet_type, score_matrix_type> msaOpt{};
+    score_matrix_type scMat;
+
+    for (size_t i = 0; i < seqan3::alphabet_size<scoring_scheme_alphabet_type>; ++i)
+    {
+        for (size_t j = 0; j < seqan3::alphabet_size<scoring_scheme_alphabet_type>; ++j)
+        {
+            auto seqan3_i = seqan3::assign_rank_to(i, scoring_scheme_alphabet_type{});
+            auto seqan3_j = seqan3::assign_rank_to(j, scoring_scheme_alphabet_type{});
+            score_matrix_alphabet_type seqan2_i{seqan3::to_char(seqan3_i)};
+            score_matrix_alphabet_type seqan2_j{seqan3::to_char(seqan3_j)};
+
+            setScore(scMat, seqan2_i, seqan2_j, scoring_scheme.score(seqan3_i, seqan3_j));
+        }
+    }
+
+    msaOpt.sc = scMat;
+    return msaOpt;
+}
+
+template <typename alphabet_type, typename seqan3_configuration_t>
+    requires !seqan3_configuration_t::template exists<seqan3::align_cfg::scoring>()
+auto initialise_scoring_scheme(seqan3_configuration_t const &)
 {
     using score_type = std::conditional_t<std::same_as<alphabet_type, seqan::AminoAcid> ||
                                           std::same_as<alphabet_type, seqan::ReducedAminoAcid<seqan::Murphy10>> ||
@@ -101,6 +133,20 @@ auto seqan2_msa_configuration(seqan3_configuration_t const & config)
                                           seqan::Score<int>>;
 
     seqan::MsaOptions<alphabet_type, score_type> msaOpt{};
+
+    if constexpr (std::is_same_v<score_type, seqan::Score<int>>)
+    {
+        msaOpt.sc.data_match = 5;       // tcoffee app default
+        msaOpt.sc.data_mismatch = -4;   // tcoffee app default
+    }
+
+    return msaOpt;
+}
+
+template <typename alphabet_type, typename seqan3_configuration_t>
+auto seqan2_msa_configuration(seqan3_configuration_t const & config)
+{
+    auto msaOpt = initialise_scoring_scheme<alphabet_type>(config);
 
     seqan::appendValue(msaOpt.method, 0); // global alignment
     seqan::appendValue(msaOpt.method, 1); // local alignment
@@ -117,20 +163,12 @@ auto seqan2_msa_configuration(seqan3_configuration_t const & config)
         msaOpt.pairwiseAlignmentMethod = 1; // unbanded
     }
 
-    score_type scMat;
-    msaOpt.sc = scMat;
-
     // seqan2 tcoffee app default: gap -1, gap open -13
     auto const & gaps = config.get_or(align_cfg::gap{gap_scheme{gap_score{-1}, gap_open_score{-13}}}).value;
     // convert to seqan2 gap score convention.
     // See: https://docs.seqan.de/seqan/3-master-user/classseqan3_1_1gap__scheme.html
     msaOpt.sc.data_gap_open = gaps.get_gap_open_score() + gaps.get_gap_score();
     msaOpt.sc.data_gap_extend = gaps.get_gap_score();
-    if constexpr (std::is_same_v<score_type, seqan::Score<int>>)
-    {
-        msaOpt.sc.data_match = 5;       // tcoffee app default
-        msaOpt.sc.data_mismatch = -4;   // tcoffee app default
-    }
 
     return msaOpt;
 }
