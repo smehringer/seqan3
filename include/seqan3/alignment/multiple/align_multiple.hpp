@@ -8,6 +8,8 @@
 /*!\file
  * \brief Provides the algorithm seqan3::align_multiple.
  * \author Svenja Mehringer <svenja.mehringer AT fu-berlin.de>
+ * \author Joerg Winkler <j.winkler AT fu-berlin.de>
+ * \author Simon Sasse <simon.sasse AT fu-berlin.de>
  */
 
 #pragma once
@@ -18,25 +20,13 @@
 static_assert(false, "You need to have seqan 2.x");
 #else // SEQAN3_HAS_SEQAN2
 
-#include <seqan3/std/algorithm>
-#include <cstdlib>
 #include <seqan3/std/ranges>
-#include <string>
 #include <vector>
 
-#include <seqan/basic.h>
 #include <seqan/graph_msa.h>
-#include <seqan/modifier.h>
-#include <seqan/arg_parse.h>
-#include <seqan/seq_io.h>
-#include <seqan/stream.h>
 
-#include <seqan3/alignment/multiple/detail.hpp>
 #include <seqan3/alignment/configuration/align_config_gap.hpp>
-#include <seqan3/alphabet/gap/gapped.hpp>
-#include <seqan3/alphabet/nucleotide/dna4.hpp>
-#include <seqan3/range/views/char_to.hpp>
-#include <seqan3/range/views/chunk.hpp>
+#include <seqan3/alignment/multiple/detail/align_multiple_seqan2_adaptation.hpp>
 
 namespace seqan3::align_cfg
 {
@@ -48,64 +38,23 @@ constexpr configuration msa_default_configuration = gap{gap_scheme{gap_score{-1}
 namespace seqan3
 {
 
-template <std::ranges::forward_range range_t, typename configuration_t = decltype(align_cfg::msa_default_configuration)>
-auto align_multiple(std::vector<range_t> const & input, configuration_t config = align_cfg::msa_default_configuration)
+template <std::ranges::forward_range range_t, typename config_t = decltype(align_cfg::msa_default_configuration)>
+auto align_multiple(std::vector<range_t> const & input, config_t config = align_cfg::msa_default_configuration)
 {
     using seqan3_alphabet_type = std::ranges::range_value_t<range_t>;
+    using seqan2_adaptation_type = detail::align_multiple_seqan2_adaptation<seqan3_alphabet_type>;
+    using graph_type = typename seqan2_adaptation_type::graph_type;
 
-    using alphabet_type = decltype(detail::convert_alph_3_to_2(std::ranges::range_value_t<range_t>{}));
-    using sequence_type = seqan::String<alphabet_type>;
-    using graph_type = seqan::Graph<seqan::Alignment<seqan::StringSet<sequence_type, seqan::Dependent<>>,
-                                                     void,
-                                                     seqan::WithoutEdgeId>>;
+    seqan2_adaptation_type seqan2_adaptation{};
 
-    detail::validate_configuration(config);
+    auto msaOpt = seqan2_adaptation.create_msa_configuration(config);
+    auto && [sequenceSet, sequenceNames] = seqan2_adaptation.convert_sequences(input);
 
-    auto msaOpt = detail::seqan2_msa_configuration<alphabet_type>(config);
-
-    // fill seqan2 data storage
-    seqan::StringSet<sequence_type, seqan::Owner<>> sequenceSet;
-    seqan::StringSet<seqan::String<char>> sequenceNames;
-
-    seqan::String<char> dummy_name = "dummy_name";
-    for (auto const & seq : input)
-    {
-        sequence_type tmp;
-        for (auto chr : seq)
-            seqan::appendValue(tmp, detail::convert_alph_3_to_2(chr));
-
-        seqan::appendValue(sequenceSet, tmp);
-        seqan::appendValue(sequenceNames, dummy_name);
-    }
-
-    // Alignment of the sequences
     graph_type gAlign;
 
-    // MSA
-    try
-    {
-        seqan::globalMsaAlignment(gAlign, sequenceSet, sequenceNames, msaOpt);
-    }
-    catch (const std::bad_alloc & exception)
-    {
-        std::cerr << "Allocation for globalAlignment failed. Use smaller data or try a seeded alignment. \n"
-                  << exception.what() << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+    seqan::globalMsaAlignment(gAlign, sequenceSet, sequenceNames, msaOpt);
 
-    std::string mat;
-    seqan::convertAlignment(gAlign, mat);
-
-    using gapped_alphabet_type = seqan3::gapped<seqan3_alphabet_type>;
-    std::vector<std::vector<gapped_alphabet_type>> output{seqan::length(seqan::stringSet(gAlign))};
-    size_t ali_len = mat.size() / output.size();
-
-    auto iter = output.begin();
-    for (auto && gapped_seq : mat | seqan3::views::char_to<gapped_alphabet_type> | seqan3::views::chunk(ali_len))
-    {
-        iter->reserve(ali_len);
-        std::ranges::copy(gapped_seq, std::cpp20::back_inserter(*iter++));
-    }
+    auto && output = seqan2_adaptation.create_output(gAlign);
 
     return output;
 }

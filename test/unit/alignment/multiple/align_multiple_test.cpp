@@ -14,12 +14,12 @@
 #include <seqan3/alignment/configuration/align_config_scoring.hpp>
 #include <seqan3/alignment/scoring/aminoacid_scoring_scheme.hpp>
 #include <seqan3/alignment/multiple/align_multiple.hpp>
-#include <seqan3/alignment/multiple/detail.hpp>
 #include <seqan3/alphabet/aminoacid/aa27.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
 #include <seqan3/alphabet/nucleotide/dna15.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
 #include <seqan3/alphabet/nucleotide/dna5.hpp>
+#include <seqan3/core/detail/debug_stream_alphabet.hpp>
 #include <seqan3/range/views/char_to.hpp>
 #include <seqan3/test/expect_range_eq.hpp>
 
@@ -28,31 +28,6 @@ using seqan3::operator""_dna4;
 using seqan3::operator""_dna5;
 using seqan3::operator""_rna5;
 using seqan3::operator""_rna4;
-
-TEST(detail_initialise_scoring_scheme, no_scoring_configuration)
-{
-    // no scoring information
-    seqan3::configuration config = seqan3::align_cfg::gap{seqan3::gap_scheme{seqan3::gap_score{-2},
-                                                                             seqan3::gap_open_score{-8}}};
-    auto msaOpt = seqan3::detail::initialise_scoring_scheme<seqan::Dna>(config);
-
-    EXPECT_TRUE((std::same_as<decltype(msaOpt.sc), seqan::Score<int>>));
-}
-
-TEST(detail_initialise_scoring_scheme, blosum62)
-{
-    // no scoring information
-    seqan3::aminoacid_scoring_scheme scheme{seqan3::aminoacid_similarity_matrix::BLOSUM62};
-    seqan3::configuration config = seqan3::align_cfg::scoring{scheme};
-    auto msaOpt = seqan3::detail::initialise_scoring_scheme<seqan::AminoAcid>(config);
-
-    // compare matrix size and abort test if not equal so the value comparison does not segfault
-    ASSERT_EQ(static_cast<size_t>(decltype(msaOpt.sc)::TAB_SIZE), static_cast<size_t>(seqan::Blosum62::TAB_SIZE));
-
-    seqan::Blosum62 expected_matrix{};
-    for (size_t i = 0; i < static_cast<size_t>(seqan::Blosum62::TAB_SIZE); ++i)
-        EXPECT_EQ(msaOpt.sc.data_tab[i], expected_matrix.data_tab[i]);
-}
 
 TEST(align_multiple_test, the_first_dna4_test)
 {
@@ -197,20 +172,4 @@ TEST(align_multiple_test, the_third_gap_score_test)
     auto result = seqan3::align_multiple(input, cfg);
 
     EXPECT_RANGE_EQ(output, result);
-}
-
-TEST(align_multiple_test, gap_score_conversion_test)
-{
-    // with go = -1, g = -1
-    constexpr seqan3::configuration cfg = seqan3::align_cfg::gap{seqan3::gap_scheme{seqan3::gap_score{-1},
-                                                                                    seqan3::gap_open_score{-1}}};
-    // seqan2 does not add a gap score for the first gap character but just the gap open score
-    // seqan3 does add the gap extension score additionally to the open score for the first gap character
-    // we need an alphabet type.
-    using alphabet_type = seqan::Rna;
-
-    auto msaOpt = seqan3::detail::seqan2_msa_configuration<alphabet_type>(cfg);
-
-    EXPECT_EQ(msaOpt.sc.data_gap_extend, -1);
-    EXPECT_EQ(msaOpt.sc.data_gap_open, -2);
 }
