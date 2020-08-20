@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <seqan/basic.h>
+#include <seqan/graph_msa.h>
 #include <seqan/modifier.h>
 #include <seqan/seq_io.h>
 #include <seqan/stream.h>
@@ -32,6 +33,7 @@
 #include <seqan3/alphabet/gap/gapped.hpp>
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <seqan3/core/algorithm/configuration.hpp>
+#include <seqan3/core/detail/test_accessor.hpp>
 #include <seqan3/core/type_list/traits.hpp>
 #include <seqan3/core/type_traits/template_inspection.hpp>
 #include <seqan3/range/views/char_to.hpp>
@@ -49,8 +51,14 @@ class align_multiple_seqan2_adaptation
 private:
     // same order
     using seqan3_types = type_list<dna4, dna5, dna15, rna4, rna5, aa27, aa10murphy, aa10li>;
-    using seqan2_types = type_list<seqan::Dna, seqan::Dna5, seqan::Iupac, seqan::Rna, seqan::Rna5, seqan::AminoAcid,
-                                   seqan::ReducedAminoAcid<seqan::Murphy10>, seqan::ReducedAminoAcid<seqan::Li10>>;
+    using seqan2_types = type_list<seqan::Dna,
+                                   seqan::Dna5,
+                                   seqan::Iupac,
+                                   seqan::Rna,
+                                   seqan::Rna5,
+                                   seqan::AminoAcid,
+                                   seqan::ReducedAminoAcid<seqan::Murphy10>,
+                                   seqan::ReducedAminoAcid<seqan::Li10>>;
     static constexpr auto index = list_traits::find<seqan3_alphabet_type, seqan3_types>;
 
 public:
@@ -67,7 +75,7 @@ public:
     {
         validate_configuration(config);
 
-        auto msaOpt = initialise_scoring_scheme<alphabet_type>(config);
+        auto msaOpt = initialise_scoring_scheme(config);
 
         seqan::appendValue(msaOpt.method, 0); // global alignment
         seqan::appendValue(msaOpt.method, 1); // local alignment
@@ -157,7 +165,7 @@ private:
                       "The given MSA configuration is not valid.");
     }
 
-    template <typename alphabet_type, typename seqan3_configuration_t>
+    template <typename seqan3_configuration_t>
         requires seqan3_configuration_t::template exists<seqan3::align_cfg::scoring>()
     auto initialise_scoring_scheme(seqan3_configuration_t const & config)
     {
@@ -191,7 +199,7 @@ private:
         return msaOpt;
     }
 
-    template <typename alphabet_type, typename seqan3_configuration_t>
+    template <typename seqan3_configuration_t>
         requires !seqan3_configuration_t::template exists<seqan3::align_cfg::scoring>()
     auto initialise_scoring_scheme(seqan3_configuration_t const &)
     {
@@ -211,6 +219,9 @@ private:
 
         return msaOpt;
     }
+
+    //!\brief Befriend seqan3::detail::test_accessor to grant access to private member functions.
+    friend struct ::seqan3::detail::test_accessor;
 };
 
 } //seqan3::detail
