@@ -6,7 +6,7 @@
 // -----------------------------------------------------------------------------------------------------
 
 /*!\file
- * \brief Provides the algorithm seqan3::align_multiple.
+ * \brief Provides the algorithm seqan3::align_multiple for multiple sequence alignment.
  * \author Svenja Mehringer <svenja.mehringer AT fu-berlin.de>
  * \author Joerg Winkler <j.winkler AT fu-berlin.de>
  * \author Simon Sasse <simon.sasse AT fu-berlin.de>
@@ -31,13 +31,40 @@ static_assert(false, "You need to have seqan 2.x");
 namespace seqan3::align_cfg
 {
 
+/*!\brief The standard configuration for multiple sequence alignment.
+ * \ingroup multiple_alignment
+ * \details
+ *
+ * The standard configuration values are adapted from SeqAn2 in order to provide the same behaviour.
+ *
+ *   * general gap score: -1
+ *   * additional gap open score: -13
+ *   * band constraints: none
+ *   * scoring for amino acid sequences: Blosum62 matrix
+ *   * scoring for nucleotide sequences: +5 (match) and -4 (mismatch)
+ */
 constexpr configuration msa_default_configuration = gap{gap_scheme{gap_score{-1}, gap_open_score{-13}}};
 
-}
+} // namespace seqan3::align_cfg
 
 namespace seqan3
 {
 
+/*!\brief The algorithm for multiple sequence alignment.
+ * \ingroup multiple_alignment
+ * \tparam range_t Type of the input sequences, must model std::ranges::forward_range.
+ * \tparam config_t Type of the configuration; defaults to the type of seqan3::align_cfg::msa_default_configuration.
+ * \param input A vector of sequences that you want to align.
+ * \param config A configuration object that stores the settings for the algorithm;
+ *               defaults to seqan3::align_cfg::msa_default_configuration.
+ * \return The multiple sequence alignment as a vector of gapped sequences.
+ * \details
+ *
+ * Computes a multiple sequence alignment from the given input sequences, using a consistency-based progressive
+ * alignment algorithm on a graph of sequence segments. You can use the configuration object to
+ * specify various parameters, like gap scores, alignment scores and band constraints. The return type is
+ * `std::vector<std::vector<gapped_alphabet_type>>`, with the inner type derived from the input sequence type.
+ */
 template <std::ranges::forward_range range_t, typename config_t = decltype(align_cfg::msa_default_configuration)>
 auto align_multiple(std::vector<range_t> const & input, config_t config = align_cfg::msa_default_configuration)
 {
