@@ -165,8 +165,15 @@ private:
                       "The given MSA configuration is not valid.");
     }
 
+    /*!\brief Create the SeqAn2 scoring scheme based on the given SeqAn3 configuration.
+     * \tparam seqan3_configuration_t The type of the configuration object.
+     * \param config The configuration that contains scoring parameters.
+     * \return A SeqAn2 *MsaOptions* object with initialised scores.
+     */
     template <typename seqan3_configuration_t>
+    //!\cond
         requires seqan3_configuration_t::template exists<seqan3::align_cfg::scoring>()
+    //!\endcond
     auto initialise_scoring_scheme(seqan3_configuration_t const & config)
     {
         auto scoring_scheme = get<seqan3::align_cfg::scoring>(config).value;
@@ -199,8 +206,14 @@ private:
         return msaOpt;
     }
 
+    /*!\brief Create the SeqAn2 scoring scheme based on default values.
+     * \tparam seqan3_configuration_t The type of a configuration object, which does not contain scoring parameters.
+     * \return A SeqAn2 *MsaOptions* object with initialised scores.
+     */
     template <typename seqan3_configuration_t>
+    //!\cond
         requires !seqan3_configuration_t::template exists<seqan3::align_cfg::scoring>()
+    //!\endcond
     auto initialise_scoring_scheme(seqan3_configuration_t const &)
     {
         using score_type = std::conditional_t<std::same_as<alphabet_type, seqan::AminoAcid> ||
