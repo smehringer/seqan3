@@ -49,8 +49,9 @@ template <typename seqan3_alphabet_type>
 class align_multiple_seqan2_adaptation
 {
 private:
-    // same order
+    //!\brief A list of seqan3 types that are currently supported for seqan3::align_multiple.
     using seqan3_types = type_list<dna4, dna5, dna15, rna4, rna5, aa27, aa10murphy, aa10li>;
+    //!\brief The corresponding list of seqan2 types (the order must be the same!).
     using seqan2_types = type_list<seqan::Dna,
                                    seqan::Dna5,
                                    seqan::Iupac,
@@ -59,54 +60,63 @@ private:
                                    seqan::AminoAcid,
                                    seqan::ReducedAminoAcid<seqan::Murphy10>,
                                    seqan::ReducedAminoAcid<seqan::Li10>>;
+    //!\brief The index of the seqan3_alphabet_type in the list of seqan3_types.
     static constexpr auto index = list_traits::find<seqan3_alphabet_type, seqan3_types>;
 
+    static_assert(index != -1, "The seqan3_alphabet_type is currently not supported.");
+
 public:
+    //!\brief The (seqan2) alphabet type used in the multiple sequence alignment algorithm.
     using alphabet_type = list_traits::at<index, seqan2_types>;
-
+    //!\brief The (seqan2) sequence tupe used in the multiple sequence alignment algorithm.
     using sequence_type = seqan::String<alphabet_type>;
-
+    //!\brief The output graph type of the multiple sequence alignment algorithm.
     using graph_type = seqan::Graph<seqan::Alignment<seqan::StringSet<sequence_type, seqan::Dependent<>>,
                                                      void,
                                                      seqan::WithoutEdgeId>>;
 
+    /*!\brief Create the SeqAn2 configuration object based on the given SeqAn3 configuration.
+     * \tparam seqan3_configuration_t The type of the seqan3 configuration object.
+     * \param config The seqan3 configuration object.
+     * \return A SeqAn2 *MsaOptions* object equivalent to the seqan3 configuration.
+     */
     template <typename seqan3_configuration_t>
     auto create_msa_configuration(seqan3_configuration_t const & config)
     {
         validate_configuration(config);
 
-        auto msaOpt = initialise_scoring_scheme(config);
+        auto msa_options = initialise_scoring_scheme(config);
 
-        seqan::appendValue(msaOpt.method, 0); // global alignment
-        seqan::appendValue(msaOpt.method, 1); // local alignment
-        msaOpt.build = 0; // neighbour joining to build the guide tree
+        seqan::appendValue(msa_options.method, 0); // global alignment
+        seqan::appendValue(msa_options.method, 1); // local alignment
+        msa_options.build = 0; // neighbour joining to build the guide tree
 
         if constexpr (config.template exists<seqan3::align_cfg::band_fixed_size>())
         {
-            msaOpt.pairwiseAlignmentMethod = 2; // banded
+            msa_options.pairwiseAlignmentMethod = 2; // banded
             auto const & band = get<seqan3::align_cfg::band_fixed_size>(config);
-            msaOpt.bandWidth = band.upper_diagonal.get() - band.lower_diagonal.get();
+            msa_options.bandWidth = band.upper_diagonal.get() - band.lower_diagonal.get();
         }
         else
         {
-            msaOpt.pairwiseAlignmentMethod = 1; // unbanded
+            msa_options.pairwiseAlignmentMethod = 1; // unbanded
         }
 
         // seqan2 tcoffee app default: gap -1, gap open -13
         auto const & gaps = config.get_or(align_cfg::gap{gap_scheme{gap_score{-1}, gap_open_score{-13}}}).value;
         // convert to seqan2 gap score convention.
         // See: https://docs.seqan.de/seqan/3-master-user/classseqan3_1_1gap__scheme.html
-        msaOpt.sc.data_gap_open = gaps.get_gap_open_score() + gaps.get_gap_score();
-        msaOpt.sc.data_gap_extend = gaps.get_gap_score();
+        msa_options.sc.data_gap_open = gaps.get_gap_open_score() + gaps.get_gap_score();
+        msa_options.sc.data_gap_extend = gaps.get_gap_score();
 
-        return msaOpt;
+        return msa_options;
     }
 
     template <std::ranges::forward_range range_t>
     auto convert_sequences(std::vector<range_t> const & input)
     {
-        seqan::StringSet<sequence_type, seqan::Owner<>> sequenceSet;
-        seqan::StringSet<seqan::String<char>> sequenceNames;
+        seqan::StringSet<sequence_type, seqan::Owner<>> sequences;
+        seqan::StringSet<seqan::String<char>> ids;
 
         seqan::String<char> dummy_name = "dummy_name";
         for (auto const & seq : input)
@@ -115,21 +125,21 @@ public:
             for (auto chr : seq)
                 seqan::appendValue(tmp, alphabet_type{seqan3::to_char(chr)});
 
-            seqan::appendValue(sequenceSet, tmp);
-            seqan::appendValue(sequenceNames, dummy_name);
+            seqan::appendValue(sequences, tmp);
+            seqan::appendValue(ids, dummy_name);
         }
 
-        return std::make_pair(std::move(sequenceSet), std::move(sequenceNames));
+        return std::make_pair(std::move(sequences), std::move(ids));
     }
 
     template <typename graph_type>
-    auto create_output(graph_type & gAlign)
+    auto create_output(graph_type & alignment_graph)
     {
         std::string mat;
-        seqan::convertAlignment(gAlign, mat);
+        seqan::convertAlignment(alignment_graph, mat);
 
         using gapped_alphabet_type = seqan3::gapped<seqan3_alphabet_type>;
-        std::vector<std::vector<gapped_alphabet_type>> output{seqan::length(seqan::stringSet(gAlign))};
+        std::vector<std::vector<gapped_alphabet_type>> output{seqan::length(seqan::stringSet(alignment_graph))};
         size_t ali_len = mat.size() / output.size();
 
         auto iter = output.begin();
@@ -169,6 +179,11 @@ private:
      * \tparam seqan3_configuration_t The type of the configuration object.
      * \param config The configuration that contains scoring parameters.
      * \return A SeqAn2 *MsaOptions* object with initialised scores.
+     *
+     * The scoring scheme matrices are copied from seqan3 into the corresponding seqan2 type.
+     * Note that the alphabet type can be different to that of the input sequences
+     * (seqan3::detail::align_multiple_seqan2_adaptation::alphabet_type), e.g. the seqan3 nucleotide scoring scheme is
+     * defined for dna16 but works for most other nucleotide alphabets too. The same holds for the seqan2 equivalent.
      */
     template <typename seqan3_configuration_t>
     //!\cond
@@ -186,8 +201,8 @@ private:
         using score_matrix_alphabet_type = list_traits::at<scoring_scheme_alphabet_index, seqan2_types>;
         using score_matrix_type = seqan::Score<int, seqan::ScoreMatrix<score_matrix_alphabet_type>>;
 
-        seqan::MsaOptions<alphabet_type, score_matrix_type> msaOpt{};
-        score_matrix_type scMat;
+        seqan::MsaOptions<alphabet_type, score_matrix_type> msa_options{};
+        score_matrix_type score_matrix;
 
         for (size_t i = 0; i < seqan3::alphabet_size<scoring_scheme_alphabet_type>; ++i)
         {
@@ -198,17 +213,21 @@ private:
                 score_matrix_alphabet_type seqan2_i{seqan3::to_char(seqan3_i)};
                 score_matrix_alphabet_type seqan2_j{seqan3::to_char(seqan3_j)};
 
-                setScore(scMat, seqan2_i, seqan2_j, scoring_scheme.score(seqan3_i, seqan3_j));
+                setScore(score_matrix, seqan2_i, seqan2_j, scoring_scheme.score(seqan3_i, seqan3_j));
             }
         }
 
-        msaOpt.sc = scMat;
-        return msaOpt;
+        msa_options.sc = score_matrix;
+        return msa_options;
     }
 
     /*!\brief Create the SeqAn2 scoring scheme based on default values.
      * \tparam seqan3_configuration_t The type of a configuration object, which does not contain scoring parameters.
      * \return A SeqAn2 *MsaOptions* object with initialised scores.
+     *
+     * Settings:
+     *   * scoring for amino acid sequences: Blosum62 matrix
+     *   * scoring for nucleotide sequences: match = +5 and mismatch = -4
      */
     template <typename seqan3_configuration_t>
     //!\cond
@@ -222,15 +241,15 @@ private:
                                               seqan::Blosum62,
                                               seqan::Score<int>>;
 
-        seqan::MsaOptions<alphabet_type, score_type> msaOpt{};
+        seqan::MsaOptions<alphabet_type, score_type> msa_options{};
 
         if constexpr (std::is_same_v<score_type, seqan::Score<int>>)
         {
-            msaOpt.sc.data_match = 5;       // tcoffee app default
-            msaOpt.sc.data_mismatch = -4;   // tcoffee app default
+            msa_options.sc.data_match = 5;       // tcoffee app default
+            msa_options.sc.data_mismatch = -4;   // tcoffee app default
         }
 
-        return msaOpt;
+        return msa_options;
     }
 
     //!\brief Befriend seqan3::detail::test_accessor to grant access to private member functions.

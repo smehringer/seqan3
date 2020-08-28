@@ -40,8 +40,12 @@ namespace seqan3::align_cfg
  *   * general gap score: -1
  *   * additional gap open score: -13
  *   * band constraints: none
- *   * scoring for amino acid sequences: Blosum62 matrix
- *   * scoring for nucleotide sequences: +5 (match) and -4 (mismatch)
+ *   * scoring for amino acid sequences: Blosum62 matrix (set internally)
+ *   * scoring for nucleotide sequences: match = +5 and mismatch = -4 (set internally)
+ *
+ * \if DEV
+ * See seqan3::detail::align_multiple_seqan2_adaptation::create_msa_configuration for more details on the configuration.
+ * \endif
  */
 constexpr configuration msa_default_configuration = gap{gap_scheme{gap_score{-1}, gap_open_score{-13}}};
 
@@ -70,20 +74,18 @@ auto align_multiple(std::vector<range_t> const & input, config_t config = align_
 {
     using seqan3_alphabet_type = std::ranges::range_value_t<range_t>;
     using seqan2_adaptation_type = detail::align_multiple_seqan2_adaptation<seqan3_alphabet_type>;
-    using graph_type = typename seqan2_adaptation_type::graph_type;
+    using seqan2_graph_type = typename seqan2_adaptation_type::graph_type;
 
     seqan2_adaptation_type seqan2_adaptation{};
 
-    auto msaOpt = seqan2_adaptation.create_msa_configuration(config);
-    auto && [sequenceSet, sequenceNames] = seqan2_adaptation.convert_sequences(input);
+    auto seqan2_msa_options = seqan2_adaptation.create_msa_configuration(config);
+    auto && [sequences, ids] = seqan2_adaptation.convert_sequences(input);
 
-    graph_type gAlign;
+    seqan2_graph_type alignment_graph;
 
-    seqan::globalMsaAlignment(gAlign, sequenceSet, sequenceNames, msaOpt);
+    seqan::globalMsaAlignment(alignment_graph, sequences, ids, seqan2_msa_options);
 
-    auto && output = seqan2_adaptation.create_output(gAlign);
-
-    return output;
+    return seqan2_adaptation.create_output(alignment_graph);
 }
 
 } // namespace seqan3
