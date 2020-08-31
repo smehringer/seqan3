@@ -112,6 +112,12 @@ public:
         return msa_options;
     }
 
+    /*!\brief Convert a given range of SeqAn3 sequences to a SeqAn2 stringset of sequences.
+     * \tparam range_t The type of the range containing the SeqAn3 sequences.
+     * \param input The range of SeqAn3 sequences.
+     * \return A std::pair of (1) a SeqAn2 *StringSet* container holding the sequences and (2) another
+      * SeqAn2 *StringSet* container holding the sequence ids.
+     */
     template <std::ranges::forward_range range_t>
     auto convert_sequences(std::vector<range_t> const & input)
     {
@@ -132,6 +138,11 @@ public:
         return std::make_pair(std::move(sequences), std::move(ids));
     }
 
+    /*!\brief Create a vector of gapped SeqAn3 sequences from a SeqAn2 alignment graph.
+     * \tparam graph_type The type of the alignment graph resulting from a seqan::globalMsaAlignment.
+     * \param alignment_graph The alignment graph from a seqan::globalMsaAlignment.
+     * \return A std::vector of gapped SeqAn3 sequences representing the msa result.
+     */
     template <typename graph_type>
     auto create_output(graph_type & alignment_graph)
     {
