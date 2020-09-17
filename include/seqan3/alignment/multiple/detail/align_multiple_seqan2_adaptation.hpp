@@ -20,15 +20,10 @@
 #include <vector>
 
 #include <seqan3/core/platform.hpp>
-
-#if SEQAN3_HAS_SEQAN2
-#include <seqan/graph_msa.h>
-#include <seqan/reduced_aminoacid.h>
-#endif
-
 #include <seqan3/alignment/configuration/align_config_band.hpp>
 #include <seqan3/alignment/configuration/align_config_gap.hpp>
 #include <seqan3/alignment/configuration/align_config_scoring_scheme.hpp>
+#include <seqan3/alignment/scoring/aminoacid_scoring_scheme.hpp>
 #include <seqan3/alignment/scoring/nucleotide_scoring_scheme.hpp>
 #include <seqan3/alphabet/aminoacid/all.hpp>
 #include <seqan3/alphabet/gap/gapped.hpp>
@@ -40,6 +35,11 @@
 #include <seqan3/range/views/char_to.hpp>
 #include <seqan3/range/views/chunk.hpp>
 
+#if SEQAN3_HAS_SEQAN2
+#include <seqan/graph_msa.h>
+#include <seqan/reduced_aminoacid.h>
+#endif
+
 namespace seqan3::detail
 {
 
@@ -47,30 +47,13 @@ namespace seqan3::detail
  * \ingroup multiple_alignment
  * \sa seqan3::align_multiple
  */
-template <typename seqan3_alphabet_type>
+template <seqan3::alphabet seqan3_alphabet_type>
 class align_multiple_seqan2_adaptation
 {
-private:
-    //!\brief A list of SeqAn3 types that are currently supported for seqan3::align_multiple.
-    using seqan3_types = type_list<dna4, dna5, dna15, rna4, rna5, aa27, aa10murphy, aa10li>;
-    //!\brief The corresponding list of SeqAn2 types (the order must be the same!).
-    using seqan2_types = type_list<seqan::Dna,
-                                   seqan::Dna5,
-                                   seqan::Iupac,
-                                   seqan::Rna,
-                                   seqan::Rna5,
-                                   seqan::AminoAcid,
-                                   seqan::ReducedAminoAcid<seqan::Murphy10>,
-                                   seqan::ReducedAminoAcid<seqan::Li10>>;
-    //!\brief The index of the seqan3_alphabet_type in the list of seqan3_types.
-    static constexpr auto index = list_traits::find<seqan3_alphabet_type, seqan3_types>;
-
-    static_assert(index != -1, "The seqan3_alphabet_type is currently not supported.");
-
 public:
     //!\brief The (SeqAn2) alphabet type used in the multiple sequence alignment algorithm.
-    using alphabet_type = list_traits::at<index, seqan2_types>;
-    //!\brief The (SeqAn2) sequence tupe used in the multiple sequence alignment algorithm.
+    using alphabet_type = char;
+    //!\brief The (SeqAn2) sequence type used in the multiple sequence alignment algorithm.
     using sequence_type = seqan::String<alphabet_type>;
     //!\brief The output graph type of the multiple sequence alignment algorithm.
     using graph_type = seqan::Graph<seqan::Alignment<seqan::StringSet<sequence_type, seqan::Dependent<>>,
@@ -139,7 +122,7 @@ public:
             seqan::clear(tmp);
         }
 
-        return std::make_pair(std::move(sequences), std::move(ids));
+        return std::pair{std::move(sequences), std::move(ids)};
     }
 
     /*!\brief Create a vector of gapped SeqAn3 sequences from a SeqAn2 alignment graph.
@@ -174,17 +157,14 @@ public:
     }
 
 private:
-    /*!\brief Predicate that represents whether `candidate_t` is a type that is not allowed as MSA configuration.
+    /*!\brief Helper variable that checks whether `candidate_t` is a type that is allowed as MSA configuration.
      * \tparam candidate_t The type to test.
-     *
-     * \details
-     * The predicate's value is set to: NOT (band OR gap OR scoring).
      */
     template <typename candidate_t>
-    struct is_invalid_msa_config :
-        std::negation<std::disjunction<std::is_same<candidate_t, seqan3::align_cfg::band_fixed_size>,
-                                       is_type_specialisation_of<candidate_t, seqan3::align_cfg::gap>,
-                                       is_type_specialisation_of<candidate_t, seqan3::align_cfg::scoring_scheme>>>{};
+    static constexpr bool is_valid_msa_config =
+        std::is_same_v<candidate_t, seqan3::align_cfg::band_fixed_size> ||
+        is_type_specialisation_of_v<candidate_t, seqan3::align_cfg::gap> ||
+        is_type_specialisation_of_v<candidate_t, seqan3::align_cfg::scoring_scheme>;
 
     /*!\brief Validate the given MSA configuration.
      * \tparam configs_t The specified configuration elements.
@@ -192,86 +172,77 @@ private:
     template <typename ... configs_t>
     void validate_configuration(seqan3::configuration<configs_t...> const &)
     {
-        static_assert(seqan3::pack_traits::find_if<is_invalid_msa_config, configs_t...> == -1,
-                      "The given MSA configuration is not valid.");
+        static_assert((is_valid_msa_config<configs_t> && ...),
+                      "You are trying to use an unsupported alignment configuration for the multiple sequence "
+                      "alignment. Please, use only valid configurations as specified by seqan3::align_multiple!");
     }
 
     /*!\brief Create the SeqAn2 scoring scheme based on the given SeqAn3 configuration.
      * \tparam seqan3_configuration_t The type of the configuration object.
-     * \param config The configuration that contains scoring parameters.
+     * \param[in] config The configuration that contains scoring parameters.
      * \return A SeqAn2 *MsaOptions* object with initialised scores.
      *
      * \details
+     *
      * The scoring scheme matrices are copied from SeqAn3 into the corresponding SeqAn2 type.
      * Note that the alphabet type can be different to that of the input sequences
      * (seqan3::detail::align_multiple_seqan2_adaptation::alphabet_type), e.g., the SeqAn3 nucleotide scoring scheme is
      * defined for dna16 but works for most other nucleotide alphabets too. The same holds for the SeqAn2 equivalent.
      */
     template <typename seqan3_configuration_t>
-    //!\cond
-        requires (seqan3_configuration_t::template exists<seqan3::align_cfg::scoring_scheme>())
-    //!\endcond
     auto initialise_scoring_scheme(seqan3_configuration_t const & config)
     {
-        auto scoring_scheme = get<seqan3::align_cfg::scoring_scheme>(config).value;
+        auto scoring_scheme = config.get_or(seqan3::align_cfg::scoring_scheme{default_scoring_scheme(config)}).value;
 
-        // A SeqAn3 scoring scheme might be of alphabet type dna15 although the aligned alphabet is dna4
-        // SeqAn3 alphabet type used:
-        using scoring_scheme_alphabet_type = typename decltype(scoring_scheme)::alphabet_type;
-        constexpr auto scoring_scheme_alphabet_index = list_traits::find<scoring_scheme_alphabet_type, seqan3_types>;
-        // SeqAn2 alphabet type to use accordingly:
-        using score_matrix_alphabet_type = list_traits::at<scoring_scheme_alphabet_index, seqan2_types>;
-        using score_matrix_type = seqan::Score<int, seqan::ScoreMatrix<score_matrix_alphabet_type>>;
+        static_assert(scoring_scheme_for<decltype(scoring_scheme), seqan3_alphabet_type>,
+                      "The selected scoring scheme is not suitable to be used with the given sequence input.");
+
+        // Use type erasure over the alphabet to model all scoring schemes inside of the seqan2 alignment.
+        using score_matrix_type = seqan::Score<int, seqan::ScoreMatrix<alphabet_type>>;
 
         seqan::MsaOptions<alphabet_type, score_matrix_type> msa_options{};
-        score_matrix_type score_matrix;
 
-        for (size_t i = 0; i < seqan3::alphabet_size<scoring_scheme_alphabet_type>; ++i)
+        // Transform the given scoring scheme into the type erased scoring scheme.
+        for (size_t i = 0; i < seqan3::alphabet_size<seqan3_alphabet_type>; ++i)
         {
-            for (size_t j = 0; j < seqan3::alphabet_size<scoring_scheme_alphabet_type>; ++j)
+            for (size_t j = 0; j < seqan3::alphabet_size<seqan3_alphabet_type>; ++j)
             {
-                auto seqan3_i = seqan3::assign_rank_to(i, scoring_scheme_alphabet_type{});
-                auto seqan3_j = seqan3::assign_rank_to(j, scoring_scheme_alphabet_type{});
-                score_matrix_alphabet_type seqan2_i{seqan3::to_char(seqan3_i)};
-                score_matrix_alphabet_type seqan2_j{seqan3::to_char(seqan3_j)};
+                auto seqan3_i = seqan3::assign_rank_to(i, seqan3_alphabet_type{});
+                auto seqan3_j = seqan3::assign_rank_to(j, seqan3_alphabet_type{});
+                alphabet_type seqan2_i{seqan3::to_char(seqan3_i)};
+                alphabet_type seqan2_j{seqan3::to_char(seqan3_j)};
 
-                setScore(score_matrix, seqan2_i, seqan2_j, scoring_scheme.score(seqan3_i, seqan3_j));
+                setScore(msa_options.sc, seqan2_i, seqan2_j, scoring_scheme.score(seqan3_i, seqan3_j));
             }
         }
 
-        msa_options.sc = score_matrix;
         return msa_options;
     }
 
     /*!\brief Create the SeqAn2 scoring scheme based on default values.
      * \tparam seqan3_configuration_t The type of a configuration object which does not contain scoring parameters.
-     * \return A SeqAn2 *MsaOptions* object with initialised scores.
+     * \return The default scoring scheme.
      *
-     * Settings:
-     *   * scoring for amino acid sequences: Blosum62 matrix
-     *   * scoring for nucleotide sequences: match = +5 and mismatch = -4
+     * \details
+     *
+     * Currently, this method supports two defaults for the aminoacid alphabet and the nucleotide alphabet. If the
+     * user specifies any other alphabet type that is not one of the before mentioned alphabets a static assertion
+     * will be thrown. In this case the user has to provide an additional scoring scheme.
+     *
+     * The following defaults are used:
+     *   * scoring for amino acid sequences: \ref seqan3::aminoacid_similarity_matrix::BLOSUM62 "Blosum62"
+     *     seqan3::aminoacid_scoring_scheme
+     *   * scoring for nucleotide sequences: seqan3::nucleotide_scoring_scheme with match = +5 and mismatch = -4.
      */
     template <typename seqan3_configuration_t>
-    //!\cond
-        requires (!seqan3_configuration_t::template exists<seqan3::align_cfg::scoring_scheme>())
-    //!\endcond
-    auto initialise_scoring_scheme(seqan3_configuration_t const &)
+    auto default_scoring_scheme(seqan3_configuration_t const &)
     {
-        using score_type = std::conditional_t<std::same_as<alphabet_type, seqan::AminoAcid> ||
-                                              std::same_as<alphabet_type, seqan::ReducedAminoAcid<seqan::Murphy10>> ||
-                                              std::same_as<alphabet_type, seqan::ReducedAminoAcid<seqan::Li10>>,
-                                              seqan::Blosum62,
-                                              seqan::Score<int>>;
-
-        seqan::MsaOptions<alphabet_type, score_type> msa_options{};
-
-        if constexpr (std::is_same_v<score_type, seqan::Score<int>>)
-        {
-            msa_options.sc.data_match = 5;       // tcoffee app default
-            msa_options.sc.data_mismatch = -4;   // tcoffee app default
-        }
-
-        return msa_options;
+        if constexpr (seqan3::aminoacid_alphabet<seqan3_alphabet_type>)
+            return aminoacid_scoring_scheme{aminoacid_similarity_matrix::BLOSUM62};
+        else if constexpr (seqan3::nucleotide_alphabet<seqan3_alphabet_type>)
+            return nucleotide_scoring_scheme{match_score{5}, mismatch_score{-4}};
+        else
+            static_assert(!seqan3::alphabet<seqan3_alphabet_type>, "We do not have a generic scoring scheme yet.");
     }
 
     //!\brief Befriend seqan3::detail::test_accessor to grant access to private member functions.

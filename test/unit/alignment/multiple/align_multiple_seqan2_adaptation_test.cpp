@@ -31,15 +31,14 @@ using adaptation_t = seqan3::detail::align_multiple_seqan2_adaptation<alphabet_t
 
 TEST(basics, alphabet_conversion)
 {
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::dna4>::alphabet_type, seqan::Dna>));
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::dna5>::alphabet_type, seqan::Dna5>));
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::dna15>::alphabet_type, seqan::Iupac>));
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::rna4>::alphabet_type, seqan::Rna>));
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::rna5>::alphabet_type, seqan::Rna5>));
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::aa27>::alphabet_type, seqan::AminoAcid>));
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::aa10li>::alphabet_type, seqan::ReducedAminoAcid<seqan::Li10>>));
-    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::aa10murphy>::alphabet_type,
-                              seqan::ReducedAminoAcid<seqan::Murphy10>>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::dna4>::alphabet_type, char>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::dna5>::alphabet_type, char>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::dna15>::alphabet_type, char>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::rna4>::alphabet_type, char>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::rna5>::alphabet_type, char>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::aa27>::alphabet_type, char>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::aa10li>::alphabet_type, char>));
+    EXPECT_TRUE((std::same_as<adaptation_t<seqan3::aa10murphy>::alphabet_type, char>));
 }
 
 TEST(initialise_scoring_scheme, config_no_scoring_configuration)
@@ -50,7 +49,7 @@ TEST(initialise_scoring_scheme, config_no_scoring_configuration)
 
     auto msaOpt = seqan3::detail::test_accessor::initialise_scoring_scheme<seqan3::dna4>(config);
 
-    EXPECT_TRUE((std::same_as<decltype(msaOpt.sc), seqan::Score<int>>));
+    EXPECT_TRUE((std::same_as<decltype(msaOpt.sc), seqan::Score<int, seqan::ScoreMatrix<char>>>));
 }
 
 TEST(initialise_scoring_scheme, blosum62)
@@ -62,11 +61,17 @@ TEST(initialise_scoring_scheme, blosum62)
     auto msaOpt = seqan3::detail::test_accessor::initialise_scoring_scheme<decltype(scheme)::alphabet_type>(config);
 
     // compare matrix size and abort test if not equal so the value comparison does not segfault
-    ASSERT_EQ(static_cast<size_t>(decltype(msaOpt.sc)::TAB_SIZE), static_cast<size_t>(seqan::Blosum62::TAB_SIZE));
+    ASSERT_EQ(static_cast<size_t>(decltype(msaOpt.sc)::TAB_SIZE), 256ull * 256ull);
 
     seqan::Blosum62 expected_matrix{};
-    for (size_t i = 0; i < static_cast<size_t>(seqan::Blosum62::TAB_SIZE); ++i)
-        EXPECT_EQ(msaOpt.sc.data_tab[i], expected_matrix.data_tab[i]);
+    for (size_t aa_rank1 = 0; aa_rank1 < seqan::ValueSize<seqan::AminoAcid>::VALUE; ++aa_rank1)
+        for (size_t aa_rank2 = 0; aa_rank2 < seqan::ValueSize<seqan::AminoAcid>::VALUE; ++aa_rank2)
+            EXPECT_EQ(seqan::score(msaOpt.sc,
+                                   seqan::convert<seqan::AminoAcid>(aa_rank1),
+                                   seqan::convert<seqan::AminoAcid>(aa_rank2)),
+                      seqan::score(expected_matrix,
+                                   seqan::convert<seqan::AminoAcid>(aa_rank1),
+                                   seqan::convert<seqan::AminoAcid>(aa_rank2)));
 }
 
 TEST(configuration, gap_score_conversion)
