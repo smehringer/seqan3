@@ -18,6 +18,9 @@
 #include <vector>
 
 #include <seqan3/core/platform.hpp>
+#include <seqan3/alignment/configuration/align_config_gap.hpp>
+#include <seqan3/alignment/multiple/detail/align_multiple_seqan2_adaptation.hpp>
+#include <seqan3/range/concept.hpp>
 
 #if SEQAN3_HAS_SEQAN2
 #include <seqan/graph_msa.h>
@@ -54,27 +57,44 @@ namespace seqan3
 
 /*!\brief The algorithm for multiple sequence alignment.
  * \ingroup multiple_alignment
- * \tparam range_t Type of the input sequences, must model std::ranges::forward_range.
- * \tparam config_t Type of the configuration; defaults to the type of seqan3::align_cfg::msa_default_configuration.
+ * \tparam range_t Type of the input sequences; must model std::ranges::forward_range && its reference type must model
+ *                 seqan::sequence && std::ranges::forward_range.
+ * \tparam config_t Type of the configuration.
  * \param input A vector of sequences that you want to align.
- * \param config A configuration object that stores the settings for the algorithm;
- *               defaults to seqan3::align_cfg::msa_default_configuration.
+ * \param config A configuration object that stores the settings for the algorithm [optional: see below for the
+ *               defaults if no configuration is given].
  * \return The multiple sequence alignment as a vector of gapped sequences.
+ *
  * \details
  *
  * Computes a multiple sequence alignment from the given input sequences, using a consistency-based progressive
  * alignment algorithm on a graph of sequence segments. You can use the configuration object to
  * specify various parameters, like gap scores, alignment scores and band constraints. The return type is
  * `std::vector<std::vector<gapped_alphabet_type>>`, with the inner type derived from the input sequence type.
+ *
+ * ### Default Configuration
+ *
+ *  The following defaults are used if they are not configured explicitly by the user:
+ *
+ *   * general gap score: -1
+ *   * additional gap open score: -13
+ *   * band constraints: none
+ *   * scoring for amino acid sequences: Blosum62 matrix (set internally)
+ *   * scoring for nucleotide sequences: match = +5 and mismatch = -4 (set internally)
  */
-template <std::ranges::forward_range range_t, typename config_t = decltype(align_cfg::msa_default_configuration)>
-auto align_multiple(std::vector<range_t> const & input, config_t config = align_cfg::msa_default_configuration)
+template <typename range_t, typename config_t = seqan3::configuration<>>
+//!\cond
+    requires std::ranges::forward_range<range_t> &&
+             seqan3::sequence<std::ranges::range_reference_t<range_t>> &&
+             std::ranges::forward_range<std::ranges::range_reference_t<range_t>>
+//!\endcond
+auto align_multiple(range_t && input, config_t config = seqan3::configuration<>{})
 {
 #if !SEQAN3_HAS_SEQAN2 // multiple sequence alignment is only enabled with seqan2
     static_assert(false, "You need to have at least seqan 2.4");
 #else // SEQAN3_HAS_SEQAN2
 
-    using seqan3_alphabet_type = std::ranges::range_value_t<range_t>;
+    using seqan3_alphabet_type = std::ranges::range_value_t<std::ranges::range_reference_t<range_t>>;
     using seqan2_adaptation_type = detail::align_multiple_seqan2_adaptation<seqan3_alphabet_type>;
     using seqan2_graph_type = typename seqan2_adaptation_type::graph_type;
 
