@@ -32,13 +32,15 @@
 #include <seqan3/io/detail/in_file_iterator.hpp>
 #include <seqan3/io/detail/misc_input.hpp>
 #include <seqan3/io/detail/record.hpp>
+#include <seqan3/io/sequence_file/default_configuration.hpp>
 #include <seqan3/io/sequence_file/input_format_concept.hpp>
 #include <seqan3/io/sequence_file/format_embl.hpp>
 #include <seqan3/io/sequence_file/format_fasta.hpp>
 #include <seqan3/io/sequence_file/format_fastq.hpp>
 #include <seqan3/io/sequence_file/format_genbank.hpp>
-#include <seqan3/io/alignment_file/format_sam.hpp>
+// #include <seqan3/io/alignment_file/format_sam.hpp>
 #include <seqan3/utility/type_list/traits.hpp>
+
 
 namespace seqan3
 {
@@ -112,74 +114,6 @@ SEQAN3_CONCEPT sequence_file_input_traits = requires (t v)
     requires sequence_container<typename t::template quality_container<typename t::quality_alphabet>>;
 };
 //!\endcond
-
-// ----------------------------------------------------------------------------
-// sequence_file_input_default_traits
-// ----------------------------------------------------------------------------
-
-/*!\brief The default traits for seqan3::sequence_file_input
- * \implements sequence_file_input_traits
- * \ingroup sequence
- *
- * \details
- *
- * If you wish to change a single or a few types from the default, just inherit from this class and
- * "overwrite" the respective type definitions.
- *
- * This example will make the file read into a smaller alphabet and a compressed container:
- *
- * \include test/snippet/io/sequence_file/sequence_file_input_trait_overwrite.cpp
- */
-struct sequence_file_input_default_traits_dna
-{
-    /*!\name Member types
-     * \brief Definitions to satisfy seqan3::sequence_file_input_traits.
-     * \{
-     */
-
-    //!\brief The sequence alphabet is seqan3::dna5.
-    using sequence_alphabet                 = dna5;
-
-    //!\brief The legal sequence alphabet for parsing is seqan3::dna15.
-    using sequence_legal_alphabet           = dna15;
-
-    //!\brief The type of a DNA sequence is std::vector.
-    template <typename _sequence_alphabet>
-    using sequence_container                = std::vector<_sequence_alphabet>;
-
-    //!\brief The alphabet for an identifier string is char.
-    using id_alphabet                       = char;
-
-    //!\brief The string type for an identifier is std::basic_string.
-    template <typename _id_alphabet>
-    using id_container                      = std::basic_string<_id_alphabet>;
-
-    //!\brief The alphabet for a quality annotation is seqan3::phred42.
-    using quality_alphabet                  = phred42;
-
-    //!\brief The string type for a quality annotation is std::vector.
-    template <typename _quality_alphabet>
-    using quality_container                 = std::vector<_quality_alphabet>;
-
-    //!\}
-};
-
-//!\brief A traits type that specifies input as amino acids.
-//!\ingroup sequence
-struct sequence_file_input_default_traits_aa : sequence_file_input_default_traits_dna
-{
-    /*!\name Member types
-     * \brief Definitions to satisfy seqan3::sequence_file_input_traits.
-     * \{
-     */
-
-    //!\brief The sequence alphabet is seqan3::aa27.
-    using sequence_alphabet = aa27;
-
-    //!\brief The legal sequence alphabet for parsing is seqan3::aa27.
-    using sequence_legal_alphabet = aa27;
-    //!\}
-};
 
 // ----------------------------------------------------------------------------
 // sequence_file_input
@@ -304,15 +238,7 @@ struct sequence_file_input_default_traits_aa : sequence_file_input_default_trait
  *   * seqan3::format_genbank
  *   * seqan3::format_sam
  */
-
-template <
-    sequence_file_input_traits traits_type_ = sequence_file_input_default_traits_dna,
-    detail::fields_specialisation selected_field_ids_ = fields<field::seq, field::id, field::qual>,
-    detail::type_list_of_sequence_file_input_formats valid_formats_ = type_list<format_embl,
-                                                                                format_fasta,
-                                                                                format_fastq,
-                                                                                format_genbank,
-                                                                                format_sam>>
+template <typename config_t>
 class sequence_file_input
 {
 public:
@@ -321,11 +247,14 @@ public:
      * \{
      */
     //!\brief A traits type that defines aliases and template for storage of the fields.
-    using traits_type           = traits_type_;
+    using traits_type = typename std::remove_reference_t<decltype(
+                            std::declval<config_t>().get_or(io_cfg::select_traits<sequence_file_input_default_traits_dna>))>::type;
     //!\brief A seqan3::fields list with the fields selected for the record.
-    using selected_field_ids    = selected_field_ids_;
+    using selected_field_ids = typename std::remove_reference_t<decltype(
+                                   std::declval<config_t>().get_or(io_cfg::select_fields<field::seq, field::id, field::qual>))>::type;
     //!\brief A seqan3::type_list with the possible formats.
-    using valid_formats         = valid_formats_;
+    using valid_formats = typename std::remove_reference_t<decltype(
+                              std::declval<config_t>().get_or(io_cfg::select_formats<format_fasta, format_fastq>))>::type;
     //!\brief Character type of the stream(s).
     using stream_char_type      = char;
     //!\}
@@ -434,8 +363,9 @@ public:
      * the file is detected as being compressed.
      * See the section on \link io_compression compression and decompression \endlink for more information.
      */
+    template <typename config_type>
     sequence_file_input(std::filesystem::path filename,
-                        selected_field_ids const & SEQAN3_DOXYGEN_ONLY(fields_tag) = selected_field_ids{}) :
+                        config_type SEQAN3_DOXYGEN_ONLY(config) = io_cfg::sequence_file_default_configuration) :
         primary_stream{new std::ifstream{}, stream_deleter_default}
     {
         primary_stream->rdbuf()->pubsetbuf(stream_buffer.data(), stream_buffer.size());
@@ -451,12 +381,6 @@ public:
         // initialise format handler or throw if format is not found
         detail::set_format(format, filename);
     }
-    /* NOTE(h-2): Curiously we do not need a user-defined deduction guide for the above constructor.
-     * A combination of default template parameters and auto-deduction guides works as expected,
-     * independent of whether the second/optional parameter is specified or not, i.e. it is possible
-     * to auto-deduct and overwrite a single template parameter out of the four if the optional parameter
-     * is specified and use the default otherwise.
-     */
 
     /*!\brief Construct from an existing stream and with specified format.
      * \tparam file_format   The format of the file in the stream, must satisfy seqan3::sequence_file_input_format.
@@ -472,39 +396,35 @@ public:
      * it is detected as being compressed.
      * See the section on \link io_compression compression and decompression \endlink for more information.
      */
-    template <input_stream stream_t,
-              sequence_file_input_format file_format>
+    template <input_stream stream_t, typename config_type>
     //!\cond
         requires std::same_as<typename std::remove_reference_t<stream_t>::char_type, stream_char_type>
     //!\endcond
-    sequence_file_input(stream_t                 & stream,
-                        file_format        const & SEQAN3_DOXYGEN_ONLY(format_tag),
-                        selected_field_ids const & SEQAN3_DOXYGEN_ONLY(fields_tag) = selected_field_ids{}) :
-        primary_stream{&stream, stream_deleter_noop},
-        format{detail::sequence_file_input_format_exposer<file_format>{}}
+    sequence_file_input(stream_t & stream, config_type const & config) :
+        primary_stream{&stream, stream_deleter_noop}
     {
-        static_assert(list_traits::contains<file_format, valid_formats>,
-                      "You selected a format that is not in the valid_formats of this file.");
+        static_assert(config_type::template exists<io_cfg::select_formats_tag>(), "Select format of stream!");
+        // assert length == 1
+        using file_format = list_traits::at<0, valid_formats>;
+        format = detail::sequence_file_input_format_exposer<file_format>{};
 
         // possibly add intermediate compression stream
         secondary_stream = detail::make_secondary_istream(*primary_stream);
     }
 
     //!\overload
-    template <input_stream stream_t,
-              sequence_file_input_format file_format>
+    template <input_stream stream_t, typename config_type>
     //!\cond
         requires std::same_as<typename std::remove_reference_t<stream_t>::char_type, stream_char_type>
     //!\endcond
-    sequence_file_input(stream_t                && stream,
-                        file_format        const & SEQAN3_DOXYGEN_ONLY(format_tag),
-                        selected_field_ids const & SEQAN3_DOXYGEN_ONLY(fields_tag) = selected_field_ids{}) :
-        primary_stream{new stream_t{std::move(stream)}, stream_deleter_default},
-        format{detail::sequence_file_input_format_exposer<file_format>{}}
+    sequence_file_input(stream_t && stream, config_type const & config) :
+        primary_stream{new stream_t{std::move(stream)}, stream_deleter_default}
     {
-        static_assert(list_traits::contains<file_format, valid_formats>,
-                      "You selected a format that is not in the valid_formats of this file.");
+        static_assert(config_type::template exists<io_cfg::select_formats_tag>(), "Select format of stream!");
+        // assert length == 1
+        using file_format = list_traits::at<0, valid_formats>;
 
+        format = detail::sequence_file_input_format_exposer<file_format>{};
         // possibly add intermediate compression stream
         secondary_stream = detail::make_secondary_istream(*primary_stream);
     }
@@ -664,6 +584,7 @@ protected:
                                        detail::get_or_ignore<field::id>(record_buffer),
                                        detail::get_or_ignore<field::qual>(record_buffer));
             }
+
         }, format);
     }
 
@@ -677,44 +598,19 @@ protected:
  */
 
 //!\brief Deduces the sequence input file type from the stream and the format.
-template <input_stream stream_type,
-          sequence_file_input_format file_format>
-sequence_file_input(stream_type & stream,
-                    file_format const &)
-    -> sequence_file_input<typename sequence_file_input<>::traits_type,         // actually use the default
-                           typename sequence_file_input<>::selected_field_ids,  // default field ids.
-                           type_list<file_format>>;
-
-//!\overload
-template <input_stream stream_type,
-          sequence_file_input_format file_format>
-sequence_file_input(stream_type && stream,
-                    file_format const &)
-   -> sequence_file_input<typename sequence_file_input<>::traits_type,         // actually use the default
-                          typename sequence_file_input<>::selected_field_ids,  // default field ids.
-                          type_list<file_format>>;
+template <typename config_type>
+sequence_file_input(std::filesystem::path, config_type)
+    -> sequence_file_input<config_type>;
 
 //!\brief Deduces the sequence input file type from the stream, the format and the field ids.
-template <input_stream stream_type,
-          sequence_file_input_format file_format,
-          detail::fields_specialisation selected_field_ids>
-sequence_file_input(stream_type && stream,
-                    file_format const &,
-                    selected_field_ids const &)
-    -> sequence_file_input<typename sequence_file_input<>::traits_type,       // actually use the default
-                           selected_field_ids,
-                           type_list<file_format>>;
+template <input_stream stream_type, typename config_type>
+sequence_file_input(stream_type && stream, config_type)
+    -> sequence_file_input<config_type>;
 
 //!\overload
-template <input_stream stream_type,
-          sequence_file_input_format file_format,
-          detail::fields_specialisation selected_field_ids>
-sequence_file_input(stream_type & stream,
-                    file_format const &,
-                    selected_field_ids const &)
-    -> sequence_file_input<typename sequence_file_input<>::traits_type,       // actually use the default
-                           selected_field_ids,
-                           type_list<file_format>>;
+template <input_stream stream_type, typename config_type>
+sequence_file_input(stream_type & stream, config_type)
+    -> sequence_file_input<config_type>;
 //!\}
 
 } // namespace seqan3
